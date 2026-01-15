@@ -258,6 +258,7 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
             <button onClick={() => setCurrentPage('classes')} className={`${currentPage === 'classes' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Classes</button>
             <button onClick={() => setCurrentPage('teachers')} className={`${currentPage === 'teachers' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Teachers</button>
             <button onClick={() => setCurrentPage('pricing')} className={`${currentPage === 'pricing' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Pricing</button>
+            <button onClick={() => setCurrentPage('for-teachers')} className={`${currentPage === 'for-teachers' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>For Teachers</button>
             <button onClick={() => setCurrentPage('shop')} className={`${currentPage === 'shop' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Shop</button>
             
             {user ? (
@@ -285,6 +286,7 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
             <button onClick={() => { setCurrentPage('classes'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Classes</button>
             <button onClick={() => { setCurrentPage('teachers'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Teachers</button>
             <button onClick={() => { setCurrentPage('pricing'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Pricing</button>
+            <button onClick={() => { setCurrentPage('for-teachers'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">For Teachers</button>
             <button onClick={() => { setCurrentPage('shop'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Shop</button>
             {user ? (
               <>
@@ -378,6 +380,77 @@ function HomePage({ setCurrentPage, onShowAuth }) {
                 <p className="text-gray-600">{feature.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Two Locations, One Community</h2>
+            <p className="text-gray-600">Each space offers a unique experience</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white rounded-xl shadow-sm p-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🏛️</span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">OG Location</h3>
+                  <p className="text-sm text-gray-500">1085 S Virginia St</p>
+                </div>
+              </div>
+              <p className="text-gray-600 mb-4">The heart of The Studio - your home for traditional unlimited yoga classes.</p>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">✓</span>
+                  <span>Main yoga studio with daily classes</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">✓</span>
+                  <span>Tea Lounge & Elixir Bar (2x weekly)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">✓</span>
+                  <span>Massage & bodywork rooms</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 mt-1">✓</span>
+                  <span>Unlimited access for all members</span>
+                </li>
+              </ul>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🌙</span>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">Moran St Location</h3>
+                  <p className="text-sm text-gray-500">Hybrid Model</p>
+                </div>
+              </div>
+              <p className="text-gray-600 mb-4">Flexible space offering both traditional classes and specialty co-op sessions.</p>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Traditional yoga classes (unlimited for members)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Specialty co-op classes (breathwork, sound baths, etc.)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Members get 25% off + 2 free credits for co-op classes</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Space available for teachers to rent</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>
@@ -575,6 +648,44 @@ function PricingPage({ onShowAuth }) {
                 </button>
               </div>
             ))}
+          </div>
+
+          {/* Member Perks Section */}
+          <div className="mt-16">
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-8 border-2 border-purple-200">
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Exclusive Member Perks</h3>
+                <p className="text-gray-600">Access specialty co-op classes at our Moran St location</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white rounded-xl p-6 text-center">
+                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl">25%</span>
+                  </div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Member Discount</h4>
+                  <p className="text-sm text-gray-600">Get 25% off all co-op specialty classes like breathwork, sound baths, and workshops</p>
+                </div>
+                <div className="bg-white rounded-xl p-6 text-center">
+                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl font-bold">2</span>
+                  </div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Free Monthly Credits</h4>
+                  <p className="text-sm text-gray-600">Enjoy 2 free co-op class credits every month to explore new modalities</p>
+                </div>
+                <div className="bg-white rounded-xl p-6 text-center">
+                  <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl">∞</span>
+                  </div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Unlimited Yoga</h4>
+                  <p className="text-sm text-gray-600">Full access to all traditional yoga classes at both OG and Moran locations</p>
+                </div>
+              </div>
+              <div className="text-center mt-6">
+                <p className="text-sm text-gray-500">
+                  Co-op classes are taught by independent practitioners who rent our space. Your membership unlocks special access to these unique offerings.
+                </p>
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -943,6 +1054,327 @@ function ShopPage({ user, onShowAuth }) {
 }
 
 // ============================================
+// FOR TEACHERS PAGE (Space Rental)
+// ============================================
+
+function ForTeachersPage({ onShowAuth }) {
+  const [selectedRoom, setSelectedRoom] = useState('large');
+
+  const largeRoomPricing = [
+    { slot: 'Off-Peak', hours: 'Weekday 1-4pm', rent: 100, breakeven: '5 @ $20' },
+    { slot: 'Standard', hours: 'Weekday 9am-1pm, 4-5:30pm', rent: 125, breakeven: '6 @ $22' },
+    { slot: 'Prime', hours: 'Weekday 5:30-8pm', rent: 150, breakeven: '6 @ $25' },
+    { slot: 'Weekend', hours: 'Sat-Sun all day', rent: 150, breakeven: '6 @ $25' },
+  ];
+
+  const smallRoomPricing = [
+    { slot: 'Off-Peak', hours: 'Weekday 1-4pm', rent: 75, breakeven: '3 @ $25' },
+    { slot: 'Standard', hours: 'Weekday 9am-1pm, 4-5:30pm', rent: 100, breakeven: '4 @ $28' },
+    { slot: 'Prime/Weekend', hours: 'Evenings & weekends', rent: 125, breakeven: '4 @ $32' },
+  ];
+
+  return (
+    <div className="min-h-screen">
+      {/* Hero Section */}
+      <section className="bg-gradient-to-br from-purple-50 to-indigo-100 py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-3xl">
+            <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
+              Teach at <span className="text-purple-600">The Studio Reno</span>
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              Rent our beautiful studio spaces by the hour. Bring your following, set your own prices, and keep your revenue. We handle the space, you handle the magic.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <a href="#pricing" className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-semibold transition">
+                View Pricing
+              </a>
+              <a href="#contact" className="bg-white hover:bg-gray-50 text-gray-900 px-8 py-3 rounded-lg font-semibold border border-gray-300 transition">
+                Get in Touch
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">How the Co-op Model Works</h2>
+            <p className="text-gray-600">Simple, transparent, empowering</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {[
+              { step: '1', title: 'Book Your Slot', description: 'Choose your preferred time and room. Book by the hour or commit to monthly.' },
+              { step: '2', title: 'Set Your Price', description: "You're in control. Price your class based on your offering and audience." },
+              { step: '3', title: 'Bring Your People', description: 'Market to your existing following or tap into our member community.' },
+              { step: '4', title: 'Keep Your Revenue', description: 'Pay the rental fee, keep everything else. No revenue splits or commissions.' },
+            ].map((item, i) => (
+              <div key={i} className="text-center">
+                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl font-bold text-purple-600">{item.step}</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                <p className="text-gray-600 text-sm">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Our Spaces */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Choose Your Space</h2>
+            <p className="text-gray-600">Both rooms located at our Moran St location</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Large Yoga Room</h3>
+              <p className="text-gray-600 mb-4">Perfect for yoga classes, movement workshops, and group sessions</p>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Capacity: ~25 students</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>1.5-hour time blocks</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Professional sound system</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Beautiful natural lighting</span>
+                </li>
+              </ul>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Small Room</h3>
+              <p className="text-gray-600 mb-4">Ideal for breathwork, sound baths, meditation, and intimate workshops</p>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Capacity: ~12 students</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Cozy, intimate atmosphere</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Equipment storage available (monthly)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">✓</span>
+                  <span>Perfect for specialty modalities</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-16 bg-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Transparent Pricing</h2>
+            <p className="text-gray-600">Rent by the hour or commit to monthly</p>
+          </div>
+
+          {/* Room Selector */}
+          <div className="flex justify-center gap-4 mb-8">
+            <button
+              onClick={() => setSelectedRoom('large')}
+              className={`px-6 py-3 rounded-lg font-medium transition ${
+                selectedRoom === 'large' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Large Room
+            </button>
+            <button
+              onClick={() => setSelectedRoom('small')}
+              className={`px-6 py-3 rounded-lg font-medium transition ${
+                selectedRoom === 'small' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Small Room
+            </button>
+          </div>
+
+          {/* Hourly Pricing Table */}
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Time Slot</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Hours</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Rent</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Break-even</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {(selectedRoom === 'large' ? largeRoomPricing : smallRoomPricing).map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 font-medium text-gray-900">{row.slot}</td>
+                      <td className="px-6 py-4 text-gray-600">{row.hours}</td>
+                      <td className="px-6 py-4 text-lg font-bold text-purple-600">${row.rent}</td>
+                      <td className="px-6 py-4 text-gray-600">{row.breakeven}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Monthly Rental Option */}
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl p-8 text-white">
+            <div className="flex flex-col md:flex-row items-center justify-between">
+              <div className="mb-6 md:mb-0">
+                <h3 className="text-2xl font-bold mb-2">Monthly Rental - Small Room</h3>
+                <p className="text-purple-100">For practitioners who need consistent access</p>
+                <ul className="mt-4 space-y-2 text-purple-100">
+                  <li>• 8-10 sessions per month</li>
+                  <li>• Equipment storage included</li>
+                  <li>• Priority booking</li>
+                  <li>• 3-month initial commitment</li>
+                </ul>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-bold mb-2">$850</div>
+                <div className="text-purple-100">per month</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Why Teach at The Studio?</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { title: 'Zero Commission', description: 'Keep 100% of your revenue after the flat rental fee. No hidden costs or revenue splits.', icon: '💰' },
+              { title: 'Bring Your Following', description: "Your students become part of our community. Many convert to studio members - we'll reward you when they do.", icon: '👥' },
+              { title: 'Professional Space', description: 'Beautiful, well-maintained studios in the heart of Reno. Focus on teaching, we handle the rest.', icon: '✨' },
+              { title: 'Flexible Booking', description: 'Book by the hour or commit to monthly. Scale up or down as your classes grow.', icon: '📅' },
+              { title: 'Member Access', description: 'Our 50+ members get special perks to attend your classes - built-in audience potential.', icon: '🎁' },
+              { title: 'Community Support', description: 'Join a collaborative community of teachers and practitioners. Share resources, not competition.', icon: '🤝' },
+            ].map((benefit, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-sm p-6 text-center">
+                <div className="text-4xl mb-4">{benefit.icon}</div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">{benefit.title}</h3>
+                <p className="text-gray-600">{benefit.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Member Perks Explanation */}
+      <section className="py-16 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-8">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Studio Members Get Special Access</h3>
+            <p className="text-gray-600 mb-6">
+              Our members receive exclusive perks to attend co-op classes, helping you fill your room:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold">25%</span>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-1">Member Discount</h4>
+                  <p className="text-sm text-gray-600">Members pay 25% less than your drop-in price</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold">2</span>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-1">Free Monthly Credits</h4>
+                  <p className="text-sm text-gray-600">Members get 2 free co-op class credits each month</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 mt-6">
+              <strong>Note:</strong> Credits are capped at 3 per class to ensure you have mostly paying students. Credit users help fill your room and often become regular paying customers.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h2>
+          </div>
+          <div className="space-y-6">
+            {[
+              {
+                q: 'Do I need insurance?',
+                a: 'Yes, all co-op teachers must carry their own liability insurance. We can recommend providers if needed.',
+              },
+              {
+                q: 'How do I collect payments from students?',
+                a: "You manage your own bookings and payments. We recommend platforms like Venmo, PayPal, or Mindbody for easy collection.",
+              },
+              {
+                q: 'Can I store equipment at the studio?',
+                a: 'Monthly renters of the small room get equipment storage included. Hourly renters can discuss storage options.',
+              },
+              {
+                q: 'What if I need to cancel a booking?',
+                a: 'We ask for 48-hour notice for cancellations. Monthly commitments require 30-day notice to end.',
+              },
+              {
+                q: 'Do you provide marketing support?',
+                a: "We'll list your classes on our website and promote to our member community. You're responsible for marketing to your own following.",
+              },
+            ].map((faq, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-sm p-6">
+                <h3 className="font-semibold text-gray-900 mb-2">{faq.q}</h3>
+                <p className="text-gray-600">{faq.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section id="contact" className="py-16 bg-purple-600">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">Ready to Start Teaching?</h2>
+          <p className="text-purple-100 mb-8 text-lg">
+            Get in touch to schedule a tour, discuss availability, or ask any questions.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="mailto:hello@thestudioreno.com" className="bg-white hover:bg-gray-100 text-purple-600 px-8 py-3 rounded-lg font-semibold transition">
+              Email Us
+            </a>
+            <a href="tel:7755555924" className="bg-purple-700 hover:bg-purple-800 text-white px-8 py-3 rounded-lg font-semibold transition">
+              Call (775) 555-5924
+            </a>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ============================================
 // ACCOUNT PAGE
 // ============================================
 
@@ -1137,6 +1569,7 @@ export default function PublicWebsite() {
       case 'classes': return <ClassesPage />;
       case 'teachers': return <TeachersPage />;
       case 'pricing': return <PricingPage onShowAuth={handleShowAuth} />;
+      case 'for-teachers': return <ForTeachersPage onShowAuth={handleShowAuth} />;
       case 'shop': return <ShopPage user={user} onShowAuth={handleShowAuth} />;
       case 'account': return user ? <AccountPage user={user} onLogout={handleLogout} /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
       default: return <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
