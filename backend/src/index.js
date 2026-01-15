@@ -66,6 +66,7 @@ app.use('/api/retail', require('./routes/retail'));
 app.use('/api/cms', require('./routes/cms'));
 app.use('/api/rentals', require('./routes/rentals'));
 app.use('/api/campaigns', require('./routes/campaigns'));
+app.use('/api/migration', require('./routes/migration'));
 
 // ============================================
 // SERVE FRONTEND IN PRODUCTION
