@@ -1,4 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
+import CMS from './CMS';
 
 const AuthContext = createContext(null);
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -40,6 +41,7 @@ const Icons = {
   AlertCircle: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   CheckCircle: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   Swap: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>,
+  Globe: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
 };
 
 function Modal({ isOpen, onClose, title, children, size = 'md' }) {
@@ -120,6 +122,7 @@ function Sidebar({ user, currentPage, setCurrentPage, onLogout }) {
     { id: 'sell', label: 'Sell', icon: Icons.CreditCard, roles: ['front_desk', 'manager', 'owner', 'admin'] },
     { id: 'subs', label: 'Sub Requests', icon: Icons.Swap, roles: ['teacher', 'manager', 'owner', 'admin'] },
     { id: 'reports', label: 'Reports', icon: Icons.Chart, roles: ['manager', 'owner', 'admin'] },
+    { id: 'cms', label: 'Website', icon: Icons.Globe, roles: ['manager', 'owner', 'admin'] },
     { id: 'settings', label: 'Settings', icon: Icons.Settings, roles: ['owner', 'admin'] },
   ];
   const visible = navItems.filter(i => i.roles.includes(user.role));
@@ -810,6 +813,7 @@ export default function App() {
   if (!user) return <LoginPage onLogin={setUser} />;
 
   const renderPage = () => {
+    const token = localStorage.getItem('staff_token');
     switch (currentPage) {
       case 'dashboard': return <DashboardPage />;
       case 'checkin': return <CheckInPage />;
@@ -818,6 +822,7 @@ export default function App() {
       case 'sell': return <SellPage />;
       case 'subs': return <SubRequestsPage />;
       case 'reports': return <ReportsPage />;
+      case 'cms': return <CMS token={token} />;
       case 'settings': return <SettingsPage />;
       default: return <DashboardPage />;
     }
