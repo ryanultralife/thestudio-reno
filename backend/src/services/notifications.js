@@ -362,6 +362,115 @@ function formatTime(time) {
 }
 
 // ============================================
+// RENTAL INQUIRY NOTIFICATION
+// ============================================
+
+async function sendRentalInquiryNotification(inquiry) {
+  const {
+    id,
+    first_name,
+    last_name,
+    email,
+    phone,
+    room_type,
+    rental_type,
+    practice_type,
+    message,
+  } = inquiry;
+
+  const roomTypeLabel = {
+    large: 'Large Room (~25 capacity)',
+    small: 'Small Room (~12 capacity)',
+    either: 'Either room',
+  }[room_type] || room_type;
+
+  const rentalTypeLabel = {
+    hourly: 'Hourly rental',
+    monthly: 'Monthly rental',
+    not_sure: 'Not sure yet',
+  }[rental_type] || rental_type;
+
+  // Email to admin
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.FROM_EMAIL || 'thestudioreno@gmail.com';
+
+  const adminHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7c3aed;">New Space Rental Inquiry</h2>
+
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">Contact Information</h3>
+        <p><strong>Name:</strong> ${first_name} ${last_name}</p>
+        <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
+        ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ''}
+      </div>
+
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">Rental Preferences</h3>
+        <p><strong>Room:</strong> ${roomTypeLabel}</p>
+        <p><strong>Rental Type:</strong> ${rentalTypeLabel}</p>
+        ${practice_type ? `<p><strong>Practice Type:</strong> ${practice_type}</p>` : ''}
+      </div>
+
+      ${message ? `
+      <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">Message</h3>
+        <p style="white-space: pre-wrap;">${message}</p>
+      </div>
+      ` : ''}
+
+      <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+        View full details in the admin portal: Inquiry ID ${id}
+      </p>
+    </div>
+  `;
+
+  await sendEmail(
+    adminEmail,
+    `New Space Rental Inquiry - ${first_name} ${last_name}`,
+    adminHtml
+  );
+
+  // Confirmation email to inquirer
+  const confirmationHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #7c3aed;">Thank You for Your Interest!</h2>
+
+      <p>Hi ${first_name},</p>
+
+      <p>Thanks for reaching out about renting space at The Studio Reno! We received your inquiry and will be in touch within 1-2 business days.</p>
+
+      <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0;">What's Next?</h3>
+        <ul style="line-height: 1.8;">
+          <li>We'll review your information</li>
+          <li>Reach out to schedule a tour of the space</li>
+          <li>Discuss availability and pricing details</li>
+          <li>Answer any questions you have</li>
+        </ul>
+      </div>
+
+      <p>In the meantime, feel free to check out our <a href="${process.env.FRONTEND_URL || 'https://thestudioreno.com'}/for-teachers" style="color: #7c3aed;">For Teachers page</a> for more details about our spaces and pricing.</p>
+
+      <p>Looking forward to connecting!</p>
+
+      <p style="margin-top: 30px;">
+        <strong>The Studio Reno Team</strong><br/>
+        ${process.env.FROM_EMAIL || 'thestudioreno@gmail.com'}<br/>
+        ${process.env.STUDIO_PHONE || '(775) 555-5924'}
+      </p>
+    </div>
+  `;
+
+  await sendEmail(
+    email,
+    'Thank you for your inquiry - The Studio Reno',
+    confirmationHtml
+  );
+
+  return { success: true };
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 
@@ -371,7 +480,7 @@ module.exports = {
   sendSMS,
   notify,
   notifyBulk,
-  
+
   // Convenience
   notifyBookingConfirmation,
   notifyBookingCancelled,
@@ -380,7 +489,8 @@ module.exports = {
   notifyWelcome,
   notifyMembershipExpiring,
   notifyLowCredits,
-  
+  sendRentalInquiryNotification,
+
   // Helpers
   getPreferences,
   processTemplate,

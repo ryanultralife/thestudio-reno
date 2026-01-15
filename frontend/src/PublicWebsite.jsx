@@ -1059,6 +1059,59 @@ function ShopPage({ user, onShowAuth }) {
 
 function ForTeachersPage({ onShowAuth }) {
   const [selectedRoom, setSelectedRoom] = useState('large');
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    room_type: 'either',
+    rental_type: 'not_sure',
+    practice_type: '',
+    experience_years: '',
+    has_insurance: false,
+    following_size: '',
+    message: '',
+    hear_about_us: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/rentals/inquiries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit inquiry');
+      }
+
+      setSubmitted(true);
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
 
   const largeRoomPricing = [
     { slot: 'Off-Peak', hours: 'Weekday 1-4pm', rent: 100, breakeven: '5 @ $20' },
@@ -1353,21 +1406,212 @@ function ForTeachersPage({ onShowAuth }) {
         </div>
       </section>
 
-      {/* CTA */}
-      <section id="contact" className="py-16 bg-purple-600">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Ready to Start Teaching?</h2>
-          <p className="text-purple-100 mb-8 text-lg">
-            Get in touch to schedule a tour, discuss availability, or ask any questions.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="mailto:hello@thestudioreno.com" className="bg-white hover:bg-gray-100 text-purple-600 px-8 py-3 rounded-lg font-semibold transition">
-              Email Us
-            </a>
-            <a href="tel:7755555924" className="bg-purple-700 hover:bg-purple-800 text-white px-8 py-3 rounded-lg font-semibold transition">
-              Call (775) 555-5924
-            </a>
+      {/* Inquiry Form */}
+      <section id="contact" className="py-16 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Get in Touch</h2>
+            <p className="text-gray-600">Fill out the form below and we'll be in touch within 1-2 business days</p>
           </div>
+
+          {submitted ? (
+            <div className="bg-green-50 border-2 border-green-200 rounded-xl p-8 text-center">
+              <div className="text-5xl mb-4">✓</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h3>
+              <p className="text-gray-600 mb-6">
+                Your inquiry has been submitted successfully. We'll reach out within 1-2 business days to schedule a tour and discuss your needs.
+              </p>
+              <p className="text-sm text-gray-500">
+                In the meantime, feel free to reach us at <a href="mailto:hello@thestudioreno.com" className="text-purple-600 hover:underline">hello@thestudioreno.com</a> or <a href="tel:7755555924" className="text-purple-600 hover:underline">(775) 555-5924</a>
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-8">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+                  {error}
+                </div>
+              )}
+
+              {/* Contact Info */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                    <input
+                      type="text"
+                      name="first_name"
+                      value={formData.first_name}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                    <input
+                      type="text"
+                      name="last_name"
+                      value={formData.last_name}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Rental Preferences */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Rental Preferences</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Room</label>
+                    <select
+                      name="room_type"
+                      value={formData.room_type}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="either">Either room</option>
+                      <option value="large">Large Room (~25 capacity)</option>
+                      <option value="small">Small Room (~12 capacity)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Rental Type</label>
+                    <select
+                      name="rental_type"
+                      value={formData.rental_type}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="not_sure">Not sure yet</option>
+                      <option value="hourly">Hourly rental</option>
+                      <option value="monthly">Monthly rental</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* About Your Practice */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">About Your Practice</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Practice Type</label>
+                    <input
+                      type="text"
+                      name="practice_type"
+                      value={formData.practice_type}
+                      onChange={handleChange}
+                      placeholder="e.g., Yoga, Breathwork, Sound Bath"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
+                    <input
+                      type="number"
+                      name="experience_years"
+                      value={formData.experience_years}
+                      onChange={handleChange}
+                      min="0"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Following Size</label>
+                    <select
+                      name="following_size"
+                      value={formData.following_size}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="">Select...</option>
+                      <option value="building">Building from scratch</option>
+                      <option value="5-10">5-10 students</option>
+                      <option value="10-20">10-20 students</option>
+                      <option value="20+">20+ students</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="has_insurance"
+                        checked={formData.has_insurance}
+                        onChange={handleChange}
+                        className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">I have liability insurance</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Message */}
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <textarea
+                  name="message"
+                  value={formData.message}
+                  onChange={handleChange}
+                  rows="4"
+                  placeholder="Tell us about your vision, preferred schedule, or any questions you have..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                ></textarea>
+              </div>
+
+              {/* How did you hear about us */}
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 mb-1">How did you hear about us?</label>
+                <input
+                  type="text"
+                  name="hear_about_us"
+                  value={formData.hear_about_us}
+                  onChange={handleChange}
+                  placeholder="Website, referral, social media, etc."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold transition"
+              >
+                {submitting ? 'Submitting...' : 'Submit Inquiry'}
+              </button>
+
+              <p className="text-sm text-gray-500 text-center mt-4">
+                Or reach us directly at <a href="mailto:hello@thestudioreno.com" className="text-purple-600 hover:underline">hello@thestudioreno.com</a> or <a href="tel:7755555924" className="text-purple-600 hover:underline">(775) 555-5924</a>
+              </p>
+            </form>
+          )}
         </div>
       </section>
     </div>
