@@ -65,6 +65,7 @@ app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/retail', require('./routes/retail'));
 app.use('/api/cms', require('./routes/cms'));
 app.use('/api/rentals', require('./routes/rentals'));
+app.use('/api/campaigns', require('./routes/campaigns'));
 
 // ============================================
 // SERVE FRONTEND IN PRODUCTION
@@ -134,6 +135,12 @@ app.listen(PORT, () => {
 ║  Env:  ${(process.env.NODE_ENV || 'development').padEnd(31)}║
 ╚════════════════════════════════════════╝
   `);
+
+  // Start scheduled jobs
+  if (process.env.NODE_ENV !== 'test') {
+    const { startScheduler } = require('./services/scheduler');
+    startScheduler();
+  }
 });
 
 module.exports = app;
