@@ -49,6 +49,7 @@ export default function CMS({ token }) {
             {[
               { id: 'locations', label: 'Locations', icon: '📍' },
               { id: 'teachers', label: 'Teachers', icon: '👨‍🏫' },
+              { id: 'campaigns', label: 'Auto Emails', icon: '📧' },
               { id: 'schedule', label: 'Quick Schedule', icon: '📅' },
               { id: 'media', label: 'Media Library', icon: '🖼️' },
               { id: 'settings', label: 'Settings', icon: '⚙️' },
@@ -72,6 +73,7 @@ export default function CMS({ token }) {
           <div className="p-6">
             {activeTab === 'locations' && <LocationsTab token={token} showMessage={showMessage} />}
             {activeTab === 'teachers' && <TeachersTab token={token} showMessage={showMessage} />}
+            {activeTab === 'campaigns' && <CampaignsTab token={token} showMessage={showMessage} />}
             {activeTab === 'schedule' && <QuickScheduleTab token={token} showMessage={showMessage} />}
             {activeTab === 'media' && <MediaTab token={token} showMessage={showMessage} />}
             {activeTab === 'settings' && <SettingsTab token={token} showMessage={showMessage} />}
@@ -573,6 +575,326 @@ function TeacherCard({ teacher, token, showMessage, onUpdate }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============================================
+// CAMPAIGNS TAB
+// ============================================
+
+function CampaignsTab({ token, showMessage }) {
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/campaigns`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setCampaigns(data.campaigns);
+    } catch (err) {
+      showMessage('Failed to load campaigns', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold mb-2">Automated Email Campaigns</h2>
+        <p className="text-gray-600 mb-6">
+          Simple, automated emails that help keep your members engaged. Turn campaigns on/off and customize messages.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {campaigns.map((campaign) => (
+          <CampaignCard
+            key={campaign.id}
+            campaign={campaign}
+            token={token}
+            showMessage={showMessage}
+            onUpdate={fetchCampaigns}
+          />
+        ))}
+      </div>
+
+      {campaigns.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No campaigns found. Set up campaigns from the backend.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CampaignCard({ campaign, token, showMessage, onUpdate }) {
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    email_subject: campaign.email_subject || '',
+    email_body: campaign.email_body || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  const handleToggle = async () => {
+    setToggling(true);
+    try {
+      const res = await fetch(`${API_URL}/api/campaigns/${campaign.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ is_active: !campaign.is_active }),
+      });
+
+      if (!res.ok) throw new Error('Failed to toggle');
+
+      showMessage(campaign.is_active ? 'Campaign paused' : 'Campaign activated');
+      onUpdate();
+    } catch (err) {
+      showMessage('Failed to update campaign', 'error');
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/campaigns/${campaign.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!res.ok) throw new Error('Failed to save');
+
+      showMessage('Campaign message updated!');
+      setEditing(false);
+      onUpdate();
+    } catch (err) {
+      showMessage('Failed to update campaign', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadPreview = async () => {
+    if (preview) {
+      setPreview(null);
+      return;
+    }
+
+    setLoadingPreview(true);
+    try {
+      const res = await fetch(`${API_URL}/api/campaigns/${campaign.id}/preview`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setPreview(data);
+    } catch (err) {
+      showMessage('Failed to load preview', 'error');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const triggerDescriptions = {
+    membership_expiring: 'Sent when membership is about to expire',
+    membership_expired: 'Sent after membership has expired',
+    inactive_member: 'Sent when member hasn\'t visited recently',
+    declining_attendance: 'Sent when attendance is dropping',
+    no_upcoming_bookings: 'Sent when member has no classes booked',
+    low_credits: 'Sent when credits are running low',
+    teacher_no_classes: 'Sent when teacher hasn\'t taught recently',
+    attendance_milestone: 'Sent after completing milestone classes',
+    new_member_welcome: 'Sent to new members',
+    birthday: 'Sent on member\'s birthday',
+  };
+
+  return (
+    <div className="border rounded-lg bg-white overflow-hidden">
+      {/* Card Header */}
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <h3 className="font-semibold text-lg">{campaign.name}</h3>
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                campaign.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {campaign.is_active ? '● Active' : '○ Paused'}
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              {triggerDescriptions[campaign.trigger_type] || campaign.description}
+            </p>
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <span>📊 {campaign.total_sent || 0} sent</span>
+              {campaign.last_run_at && (
+                <span>🕐 Last: {new Date(campaign.last_run_at).toLocaleDateString()}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Toggle Switch */}
+          <button
+            onClick={handleToggle}
+            disabled={toggling}
+            className={`relative inline-flex h-8 w-14 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 ${
+              campaign.is_active ? 'bg-green-500' : 'bg-gray-200'
+            } ${toggling ? 'opacity-50' : ''}`}
+          >
+            <span
+              className={`inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                campaign.is_active ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+          >
+            {expanded ? '▲ Hide Details' : '▼ View & Edit Message'}
+          </button>
+          <button
+            onClick={loadPreview}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium ml-4"
+          >
+            {loadingPreview ? 'Loading...' : preview ? '✕ Hide Preview' : '👁️ Preview Recipients'}
+          </button>
+        </div>
+      </div>
+
+      {/* Preview Section */}
+      {preview && (
+        <div className="px-6 pb-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-sm mb-2">Would send to {preview.count} people:</h4>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {preview.targets.slice(0, 10).map((target) => (
+                <div key={target.user_id} className="text-sm text-gray-700">
+                  {target.first_name} {target.last_name} ({target.email})
+                </div>
+              ))}
+              {preview.count > 10 && (
+                <div className="text-sm text-gray-500 italic">
+                  ...and {preview.count - 10} more
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded Message Section */}
+      {expanded && (
+        <div className="border-t bg-gray-50 p-6">
+          {!editing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject:</label>
+                <div className="bg-white border rounded-lg p-3 text-sm">
+                  {campaign.email_subject || <span className="text-gray-400 italic">No subject set</span>}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message:</label>
+                <div className="bg-white border rounded-lg p-3 text-sm whitespace-pre-wrap">
+                  {campaign.email_body || <span className="text-gray-400 italic">No message set</span>}
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded p-3">
+                <strong>Available merge tags:</strong> {'{{first_name}}, {{last_name}}, {{expiration_date}}, {{credits_remaining}}, {{schedule_link}}, {{renewal_link}}'}
+              </div>
+              <button
+                onClick={() => setEditing(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition"
+              >
+                Edit Message
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject:</label>
+                <input
+                  type="text"
+                  value={formData.email_subject}
+                  onChange={(e) => setFormData({ ...formData, email_subject: e.target.value })}
+                  placeholder="Email subject line..."
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message:</label>
+                <textarea
+                  value={formData.email_body}
+                  onChange={(e) => setFormData({ ...formData, email_body: e.target.value })}
+                  rows="8"
+                  placeholder="Write your email message here. Use {{first_name}}, {{credits_remaining}}, etc. for personalization."
+                  className="w-full px-3 py-2 border rounded-lg text-sm font-mono"
+                />
+              </div>
+              <div className="text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded p-3">
+                <strong>Merge tags you can use:</strong>
+                <div className="mt-2 space-y-1">
+                  <div><code>{'{{first_name}}'}</code> - Member&apos;s first name</div>
+                  <div><code>{'{{last_name}}'}</code> - Member&apos;s last name</div>
+                  <div><code>{'{{expiration_date}}'}</code> - Membership expiration date</div>
+                  <div><code>{'{{credits_remaining}}'}</code> - Remaining class credits</div>
+                  <div><code>{'{{schedule_link}}'}</code> - Link to class schedule</div>
+                  <div><code>{'{{renewal_link}}'}</code> - Link to renewal page</div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium text-sm transition"
+                >
+                  {saving ? 'Saving...' : 'Save Message'}
+                </button>
+                <button
+                  onClick={() => {
+                    setFormData({
+                      email_subject: campaign.email_subject || '',
+                      email_body: campaign.email_body || '',
+                    });
+                    setEditing(false);
+                  }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium text-sm transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
