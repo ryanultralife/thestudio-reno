@@ -142,7 +142,7 @@ ORDER BY
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_mindbody_id ON users(mindbody_id) WHERE mindbody_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_users_imported FROM mindbody ON users(imported_from_mindbody) WHERE imported_from_mindbody = true;
+CREATE INDEX IF NOT EXISTS idx_users_imported_from_mindbody ON users(imported_from_mindbody) WHERE imported_from_mindbody = true;
 CREATE INDEX IF NOT EXISTS idx_migration_errors_phase ON mindbody_migration_errors(phase);
 CREATE INDEX IF NOT EXISTS idx_api_usage_date ON mindbody_api_usage(date);
 
