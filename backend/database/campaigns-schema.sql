@@ -182,7 +182,7 @@ SELECT
   u.created_at as member_since
 
 FROM users u
-LEFT JOIN memberships m ON u.id = m.user_id AND m.status = 'active'
+LEFT JOIN user_memberships m ON u.id = m.user_id AND m.status = 'active'
 LEFT JOIN bookings b ON u.id = b.user_id AND b.status = 'confirmed'
 LEFT JOIN bookings fb ON u.id = fb.user_id AND fb.status = 'confirmed' AND fb.class_date >= CURRENT_DATE
 WHERE u.role = 'student'
