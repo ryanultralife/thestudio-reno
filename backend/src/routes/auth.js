@@ -266,7 +266,7 @@ router.put('/me', authenticate, [
 
 router.post('/change-password', authenticate, [
   body('current_password').notEmpty(),
-  body('new_password').isLength({ min: 6 }),
+  body('new_password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
 ], async (req, res, next) => {
   try {
     const { current_password, new_password } = req.body;
