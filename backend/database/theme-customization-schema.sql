@@ -3,6 +3,24 @@
 -- Allows each studio to customize branding and appearance
 -- ============================================
 
+-- Create studios table first (for multi-tenant support)
+CREATE TABLE IF NOT EXISTS studios (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  slug VARCHAR(50) UNIQUE NOT NULL, -- subdomain or path
+  name VARCHAR(100) NOT NULL,
+  owner_id UUID REFERENCES users(id),
+  subscription_tier VARCHAR(20) DEFAULT 'starter' CHECK (subscription_tier IN ('starter', 'professional', 'enterprise')),
+  subscription_status VARCHAR(20) DEFAULT 'active' CHECK (subscription_status IN ('active', 'trial', 'suspended', 'cancelled')),
+  custom_domain VARCHAR(100) UNIQUE,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+COMMENT ON TABLE studios IS
+'Multi-tenant studio management. Each studio gets its own subdomain/custom domain and theme customization.
+For single-tenant deployments, there will be just one studio record.';
+
 -- Theme settings table (for multi-tenant SaaS)
 CREATE TABLE IF NOT EXISTS theme_settings (
   id SERIAL PRIMARY KEY,
@@ -71,24 +89,6 @@ CREATE TABLE IF NOT EXISTS theme_settings (
   -- Only one theme per studio
   UNIQUE(studio_id)
 );
-
--- Create studios table if it doesn't exist (for multi-tenant support)
-CREATE TABLE IF NOT EXISTS studios (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  slug VARCHAR(50) UNIQUE NOT NULL, -- subdomain or path
-  name VARCHAR(100) NOT NULL,
-  owner_id UUID REFERENCES users(id),
-  subscription_tier VARCHAR(20) DEFAULT 'starter' CHECK (subscription_tier IN ('starter', 'professional', 'enterprise')),
-  subscription_status VARCHAR(20) DEFAULT 'active' CHECK (subscription_status IN ('active', 'trial', 'suspended', 'cancelled')),
-  custom_domain VARCHAR(100) UNIQUE,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
-COMMENT ON TABLE studios IS
-'Multi-tenant studio management. Each studio gets its own subdomain/custom domain and theme customization.
-Example: thestudioreno.yoursaas.com or their own domain.com';
 
 COMMENT ON TABLE theme_settings IS
 'Theme customization settings per studio. Allows white-labeling for SaaS.
