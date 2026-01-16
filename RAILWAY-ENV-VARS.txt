@@ -1,0 +1,61 @@
+# ============================================
+# RAILWAY DEPLOYMENT - ENVIRONMENT VARIABLES
+# ============================================
+# Copy these to Railway's Environment Variables section
+
+# ============================================
+# REQUIRED - App will not start without these
+# ============================================
+
+# Generate with: openssl rand -base64 32
+JWT_SECRET=REPLACE_WITH_GENERATED_SECRET
+
+# Railway auto-provides this when you add PostgreSQL
+DATABASE_URL=postgresql://...
+
+# Production mode
+NODE_ENV=production
+
+# Your domain (or use Railway's provided domain initially)
+CORS_ORIGIN=*
+
+# Railway PostgreSQL requires this
+DB_SSL_REJECT_UNAUTHORIZED=false
+
+# ============================================
+# STRIPE - Use TEST keys first, then LIVE
+# ============================================
+
+# Get from: https://dashboard.stripe.com/test/apikeys
+STRIPE_SECRET_KEY=sk_test_your_test_key_here
+
+# Get from: https://dashboard.stripe.com/test/webhooks
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
+
+# Your Railway app URL (Railway will provide this)
+FRONTEND_URL=https://your-app.up.railway.app
+
+# ============================================
+# SENDGRID - For Email Notifications
+# ============================================
+
+# Get from: https://app.sendgrid.com/settings/api_keys
+SENDGRID_API_KEY=SG.your_api_key_here
+
+# Must be verified in SendGrid
+SENDGRID_FROM_EMAIL=noreply@yourstudio.com
+
+# ============================================
+# TWILIO - For SMS (Optional)
+# ============================================
+
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_PHONE_NUMBER=+15551234567
+
+# ============================================
+# CRON SECRET - For scheduled tasks
+# ============================================
+
+# Generate with: openssl rand -base64 32
+CRON_SECRET=REPLACE_WITH_GENERATED_SECRET
