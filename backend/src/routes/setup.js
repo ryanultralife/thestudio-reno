@@ -9,8 +9,18 @@ const db = require('../database/connection');
 const fs = require('fs');
 const path = require('path');
 
-// Run database setup
+// GET version for browser access
+router.get('/initialize', async (req, res) => {
+  await runSetup(req, res);
+});
+
+// POST version for API calls
 router.post('/initialize', async (req, res) => {
+  await runSetup(req, res);
+});
+
+// Actual setup logic
+async function runSetup(req, res) {
   try {
     // Check if already initialized
     const check = await db.query(`
@@ -90,6 +100,6 @@ router.post('/initialize', async (req, res) => {
       details: 'Check Railway logs for full error'
     });
   }
-});
+}
 
 module.exports = router;
