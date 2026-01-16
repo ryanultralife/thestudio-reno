@@ -22,23 +22,7 @@ router.post('/initialize', async (req, res) => {
 // Actual setup logic
 async function runSetup(req, res) {
   try {
-    // Check if already initialized
-    const check = await db.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = 'public'
-        AND table_name = 'users'
-      );
-    `);
-
-    if (check.rows[0].exists) {
-      return res.status(400).json({
-        error: 'Database already initialized',
-        message: 'Tables already exist. If you need to reset, do it manually in Railway.'
-      });
-    }
-
-    console.log('🗄️  Starting database initialization...');
+    console.log('🗄️  Running database migrations (safe to re-run)...');
 
     // List of migration files in order
     const migrations = [
@@ -90,19 +74,25 @@ async function runSetup(req, res) {
       }
     }
 
-    // Create default admin user
+    // Create default admin user (skip if already exists)
     console.log('  Creating admin user...');
-    await db.query(`
-      INSERT INTO users (email, password_hash, first_name, last_name, role, is_active)
-      VALUES (
-        'admin@thestudio.com',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5eo6hJ7EQvU2u',
-        'Admin',
-        'User',
-        'admin',
-        true
-      );
-    `);
+    try {
+      await db.query(`
+        INSERT INTO users (email, password_hash, first_name, last_name, role, is_active)
+        VALUES (
+          'admin@thestudio.com',
+          '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5eo6hJ7EQvU2u',
+          'Admin',
+          'User',
+          'admin',
+          true
+        )
+        ON CONFLICT (email) DO NOTHING;
+      `);
+      console.log('  ✅ Admin user ready');
+    } catch (err) {
+      console.log('  ⚠️  Admin user already exists');
+    }
 
     console.log('✅ Database initialization complete!');
 
