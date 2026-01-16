@@ -152,8 +152,8 @@ SELECT
   -- Attendance Metrics
   COUNT(DISTINCT b.id) FILTER (WHERE b.created_at >= NOW() - INTERVAL '30 days') as classes_last_30_days,
   COUNT(DISTINCT b.id) FILTER (WHERE b.created_at >= NOW() - INTERVAL '60 days' AND b.created_at < NOW() - INTERVAL '30 days') as classes_prev_30_days,
-  MAX(b.class_date) as last_class_date,
-  CURRENT_DATE - MAX(b.class_date) as days_since_last_class,
+  MAX(c.date) as last_class_date,
+  CURRENT_DATE - MAX(c.date) as days_since_last_class,
   COUNT(DISTINCT b.id) as total_classes_all_time,
 
   -- Engagement Trend
@@ -168,15 +168,15 @@ SELECT
   END as engagement_trend,
 
   -- Upcoming Bookings
-  COUNT(DISTINCT fb.id) FILTER (WHERE fb.class_date >= CURRENT_DATE) as upcoming_bookings,
+  COUNT(DISTINCT fb.id) FILTER (WHERE fc.date >= CURRENT_DATE) as upcoming_bookings,
 
   -- Credits (if applicable)
   m.credits_remaining,
 
   -- Risk Flags
   CASE WHEN m.end_date IS NOT NULL AND m.end_date - CURRENT_DATE <= 7 THEN true ELSE false END as expiring_soon,
-  CASE WHEN CURRENT_DATE - MAX(b.class_date) > 14 THEN true ELSE false END as inactive_14_days,
-  CASE WHEN CURRENT_DATE - MAX(b.class_date) > 30 THEN true ELSE false END as inactive_30_days,
+  CASE WHEN CURRENT_DATE - MAX(c.date) > 14 THEN true ELSE false END as inactive_14_days,
+  CASE WHEN CURRENT_DATE - MAX(c.date) > 30 THEN true ELSE false END as inactive_30_days,
   CASE WHEN m.credits_remaining IS NOT NULL AND m.credits_remaining <= 2 THEN true ELSE false END as low_credits,
 
   u.created_at as member_since
@@ -184,7 +184,9 @@ SELECT
 FROM users u
 LEFT JOIN user_memberships m ON u.id = m.user_id AND m.status = 'active'
 LEFT JOIN bookings b ON u.id = b.user_id AND b.status = 'confirmed'
-LEFT JOIN bookings fb ON u.id = fb.user_id AND fb.status = 'confirmed' AND fb.class_date >= CURRENT_DATE
+LEFT JOIN classes c ON b.class_id = c.id
+LEFT JOIN bookings fb ON u.id = fb.user_id AND fb.status = 'confirmed'
+LEFT JOIN classes fc ON fb.class_id = fc.id AND fc.date >= CURRENT_DATE
 WHERE u.role = 'student'
 GROUP BY u.id, u.email, u.first_name, u.last_name, u.role, m.id, m.status, m.end_date, m.credits_remaining, u.created_at;
 
