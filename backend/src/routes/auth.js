@@ -21,16 +21,26 @@ router.post('/register', [
   body('first_name').trim().notEmpty(),
   body('last_name').trim().optional(),
   body('phone').trim().optional(),
+  body('email_opt_in').optional().isBoolean(),
+  body('sms_opt_in').optional().isBoolean(),
 ], async (req, res, next) => {
   const client = await db.getClient();
-  
+
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ error: 'Validation failed', details: errors.array() });
     }
 
-    const { email, password, first_name, last_name, phone } = req.body;
+    const {
+      email,
+      password,
+      first_name,
+      last_name,
+      phone,
+      email_opt_in = true,  // Default to true (user can opt out)
+      sms_opt_in = false    // Default to false (must opt in)
+    } = req.body;
 
     // Check if exists
     const existing = await client.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -43,10 +53,10 @@ router.post('/register', [
     // Create user
     const password_hash = await bcrypt.hash(password, 12);
     const userResult = await client.query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, phone)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, email, first_name, last_name, phone, role, created_at`,
-      [email, password_hash, first_name, last_name, phone]
+      `INSERT INTO users (email, password_hash, first_name, last_name, phone, email_opt_in, sms_opt_in, notifications_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+       RETURNING id, email, first_name, last_name, phone, role, email_opt_in, sms_opt_in, created_at`,
+      [email, password_hash, first_name, last_name, phone, email_opt_in, sms_opt_in]
     );
 
     const user = userResult.rows[0];

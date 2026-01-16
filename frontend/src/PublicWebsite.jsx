@@ -37,7 +37,15 @@ function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
   const [mode, setMode] = useState(initialMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ email: '', password: '', first_name: '', last_name: '', phone: '' });
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    phone: '',
+    email_opt_in: true, // Marketing emails - default true but can opt out
+    sms_opt_in: false // Marketing SMS - default false, must opt in
+  });
 
   if (!isOpen) return null;
 
@@ -102,6 +110,55 @@ function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
             )}
 
             <input type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent" required minLength={6} />
+
+            {mode === 'signup' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <div className="text-sm text-gray-700">
+                    <p className="font-medium mb-1">We need your contact info to send you:</p>
+                    <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li>Class reminders and schedule changes</li>
+                      <li>Membership status and renewal notices</li>
+                      <li>Important updates about classes you&apos;ve booked</li>
+                    </ul>
+                    <p className="mt-2 text-xs text-gray-600">Without email/phone, we can&apos;t notify you about your own bookings.</p>
+                  </div>
+                </div>
+
+                <div className="border-t border-blue-200 pt-3 space-y-2">
+                  <p className="text-xs font-medium text-gray-700">Optional marketing communications:</p>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.email_opt_in}
+                      onChange={(e) => setForm({ ...form, email_opt_in: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                    />
+                    <span className="text-xs text-gray-700">
+                      <strong>Email me</strong> about special offers, new classes, and studio news
+                    </span>
+                  </label>
+
+                  {form.phone && (
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.sms_opt_in}
+                        onChange={(e) => setForm({ ...form, sms_opt_in: e.target.checked })}
+                        className="mt-0.5 w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                      />
+                      <span className="text-xs text-gray-700">
+                        <strong>Text me</strong> about special offers and class reminders (optional)
+                      </span>
+                    </label>
+                  )}
+
+                  <p className="text-xs text-gray-500 italic">You can change these preferences anytime in your account settings.</p>
+                </div>
+              </div>
+            )}
 
             <button type="submit" disabled={loading} className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 px-4 rounded-lg transition disabled:opacity-50">
               {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
