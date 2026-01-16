@@ -135,10 +135,10 @@ ORDER BY
   END;
 
 -- Grant permissions
-GRANT ALL ON mindbody_migration_progress TO thestudio_admin;
-GRANT ALL ON mindbody_migration_errors TO thestudio_admin;
-GRANT ALL ON mindbody_api_usage TO thestudio_admin;
-GRANT SELECT ON mindbody_migration_dashboard TO thestudio_admin;
+-- GRANT ALL ON mindbody_migration_progress TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
+-- GRANT ALL ON mindbody_migration_errors TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
+-- GRANT ALL ON mindbody_api_usage TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
+-- GRANT SELECT ON mindbody_migration_dashboard TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_mindbody_id ON users(mindbody_id) WHERE mindbody_id IS NOT NULL;

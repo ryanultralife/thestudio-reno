@@ -207,10 +207,10 @@ CREATE INDEX IF NOT EXISTS idx_studios_slug ON studios(slug);
 CREATE INDEX IF NOT EXISTS idx_studios_custom_domain ON studios(custom_domain);
 
 -- Permissions
-GRANT ALL ON theme_settings TO thestudio_admin;
-GRANT ALL ON theme_presets TO thestudio_admin;
-GRANT ALL ON studios TO thestudio_admin;
-GRANT SELECT ON active_theme_settings TO thestudio_admin;
+-- GRANT ALL ON theme_settings TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
+-- GRANT ALL ON theme_presets TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
+-- GRANT ALL ON studios TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
+-- GRANT SELECT ON active_theme_settings TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
 
 -- Trigger to update updated_at
 CREATE OR REPLACE FUNCTION update_theme_updated_at()

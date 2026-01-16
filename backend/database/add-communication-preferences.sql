@@ -70,4 +70,4 @@ SET notifications_enabled = true
 WHERE notifications_enabled IS NULL;
 
 -- Grant permissions
-GRANT SELECT ON campaign_eligible_users TO thestudio_admin;
+-- GRANT SELECT ON campaign_eligible_users TO thestudio_admin; -- Role doesn't exist in single-tenant deployment
