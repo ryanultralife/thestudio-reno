@@ -24,6 +24,37 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // SECURITY FIX: Prevent webhook replay attacks
+  // Check if this event was already processed
+  try {
+    const alreadyProcessed = await db.query(
+      'SELECT is_stripe_event_processed($1) as processed',
+      [event.id]
+    );
+
+    if (alreadyProcessed.rows[0].processed) {
+      console.log(`⚠️  Webhook replay detected: ${event.id} already processed`);
+      // Return 200 so Stripe doesn't retry (it's not an error, just a duplicate)
+      return res.json({ received: true, status: 'already_processed' });
+    }
+
+    // Mark event as being processed (prevents concurrent processing)
+    const canProcess = await db.query(
+      'SELECT start_processing_stripe_event($1, $2, $3) as can_process',
+      [event.id, event.type, JSON.stringify(event)]
+    );
+
+    if (!canProcess.rows[0].can_process) {
+      console.log(`⚠️  Webhook already being processed: ${event.id}`);
+      return res.json({ received: true, status: 'processing' });
+    }
+  } catch (error) {
+    console.error('Error checking webhook event:', error);
+    // Don't fail the webhook if event tracking has issues
+    // Better to process duplicate than miss a legitimate event
+  }
+
+  // Process the webhook event
   try {
     switch (event.type) {
       case 'checkout.session.completed':
@@ -43,16 +74,27 @@ router.post('/stripe', express.raw({ type: 'application/json' }), async (req, re
         break;
     }
 
-    res.json({ received: true });
+    // Mark event as successfully processed
+    await db.query('SELECT complete_stripe_event($1)', [event.id]);
+
+    console.log(`✅ Webhook processed: ${event.type} (${event.id})`);
+    res.json({ received: true, status: 'completed' });
   } catch (error) {
     console.error('Stripe webhook error:', error);
+
+    // Mark event as failed for debugging
+    await db.query(
+      'SELECT fail_stripe_event($1, $2)',
+      [event.id, error.message]
+    );
+
     res.status(500).json({ error: 'Webhook handler failed' });
   }
 });
 
 async function handleCheckoutComplete(session) {
   const client = await db.getClient();
-  
+
   try {
     await client.query('BEGIN');
 
@@ -69,6 +111,19 @@ async function handleCheckoutComplete(session) {
     const user = userResult.rows[0];
     const metadata = session.metadata || {};
 
+    // SECURITY FIX: Check if this payment_intent was already processed
+    // This prevents duplicate processing if webhook is replayed
+    const existingTxn = await client.query(
+      'SELECT id FROM transactions WHERE stripe_payment_id = $1',
+      [session.payment_intent]
+    );
+
+    if (existingTxn.rows.length > 0) {
+      console.log(`⚠️  Payment intent ${session.payment_intent} already processed`);
+      await client.query('ROLLBACK');
+      return;
+    }
+
     // Create transaction
     await client.query(`
       INSERT INTO transactions (user_id, type, amount, total, payment_method, stripe_payment_id, membership_type_id, status)
@@ -84,20 +139,25 @@ async function handleCheckoutComplete(session) {
 
       if (typeResult.rows.length > 0) {
         const membershipType = typeResult.rows[0];
-        
+
         let endDate = null;
         if (membershipType.duration_days) {
           endDate = new Date();
           endDate.setDate(endDate.getDate() + membershipType.duration_days);
         }
 
-        // Deactivate existing
+        // SECURITY FIX: Atomically deactivate and create in single operation
+        // Use SERIALIZABLE isolation to prevent race conditions
+        await client.query('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+
+        // Deactivate existing active memberships
         await client.query(
-          `UPDATE user_memberships SET status = 'expired' WHERE user_id = $1 AND status = 'active'`,
+          `UPDATE user_memberships SET status = 'expired'
+           WHERE user_id = $1 AND status = 'active'`,
           [user.id]
         );
 
-        // Create new
+        // Create new membership
         await client.query(`
           INSERT INTO user_memberships (user_id, membership_type_id, end_date, credits_remaining, status, stripe_subscription_id)
           VALUES ($1, $2, $3, $4, 'active', $5)
@@ -109,6 +169,13 @@ async function handleCheckoutComplete(session) {
     console.log('✅ Checkout processed:', user.email);
   } catch (error) {
     await client.query('ROLLBACK');
+
+    // Handle serialization failures (race condition detected)
+    if (error.code === '40001') {
+      console.error('⚠️  Serialization failure detected - concurrent webhook processing');
+      throw new Error('Concurrent processing detected, Stripe will retry');
+    }
+
     throw error;
   } finally {
     client.release();

@@ -100,9 +100,20 @@ router.post('/purchase', authenticate, [
       }
     }
 
+    // SECURITY FIX: Generate idempotency key to prevent double charging
+    // Key is unique per user+membership+hour to prevent accidental double-clicks
+    // but still allows legitimate re-purchases in different time windows
+    const crypto = require('crypto');
+    const currentHour = new Date().toISOString().slice(0, 13); // 2024-01-15T14
+    const idempotencyKey = crypto
+      .createHash('sha256')
+      .update(`${req.user.id}-${membership_type_id}-${currentHour}`)
+      .digest('hex')
+      .slice(0, 32); // Stripe requires max 255 chars, we use 32
+
     // Create Stripe checkout session
     const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-    
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -124,6 +135,8 @@ router.post('/purchase', authenticate, [
         user_id: req.user.id,
         membership_type_id: membership_type_id,
       },
+    }, {
+      idempotencyKey: idempotencyKey, // Prevents duplicate sessions if request is retried
     });
 
     res.json({ checkout_url: session.url, session_id: session.id });

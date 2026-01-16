@@ -167,11 +167,46 @@ router.post('/:id/refund', requirePermission('transaction.refund'), async (req, 
 
     const txn = original.rows[0];
 
+    // SECURITY FIX: Process Stripe refund FIRST before marking in database
+    // This ensures database only shows "refunded" if money was actually returned
+    let stripeRefund = null;
+    if (txn.stripe_payment_id && process.env.STRIPE_SECRET_KEY) {
+      try {
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+        stripeRefund = await stripe.refunds.create({
+          payment_intent: txn.stripe_payment_id,
+          reason: 'requested_by_customer',
+        });
+
+        console.log(`✅ Stripe refund created: ${stripeRefund.id}`);
+      } catch (stripeError) {
+        await client.query('ROLLBACK');
+        console.error('Stripe refund failed:', stripeError);
+
+        // Return error to user - don't proceed with database changes
+        return res.status(500).json({
+          error: 'Stripe refund failed',
+          message: stripeError.message,
+          details: 'The refund could not be processed through Stripe. Please contact support or process manually.',
+        });
+      }
+    }
+
+    // Only mark as refunded in database AFTER Stripe confirms
     // Create refund transaction
     await client.query(`
-      INSERT INTO transactions (user_id, type, amount, total, payment_method, membership_type_id, processed_by, notes, status)
-      VALUES ($1, 'refund', $2, $3, $4, $5, $6, $7, 'completed')
-    `, [txn.user_id, -txn.amount, -txn.total, txn.payment_method, txn.membership_type_id, req.user.id, `Refund for txn ${id}: ${reason}`]);
+      INSERT INTO transactions (user_id, type, amount, total, payment_method, membership_type_id, processed_by, notes, stripe_payment_id, status)
+      VALUES ($1, 'refund', $2, $3, $4, $5, $6, $7, $8, 'completed')
+    `, [
+      txn.user_id,
+      -txn.amount,
+      -txn.total,
+      txn.payment_method,
+      txn.membership_type_id,
+      req.user.id,
+      `Refund for txn ${id}: ${reason}`,
+      stripeRefund ? stripeRefund.id : null, // Store Stripe refund ID
+    ]);
 
     // Mark original as refunded
     await client.query(
@@ -182,26 +217,19 @@ router.post('/:id/refund', requirePermission('transaction.refund'), async (req, 
     // If membership purchase, cancel the membership
     if (txn.membership_type_id) {
       await client.query(`
-        UPDATE user_memberships 
-        SET status = 'cancelled' 
+        UPDATE user_memberships
+        SET status = 'cancelled'
         WHERE user_id = $1 AND membership_type_id = $2 AND status = 'active'
       `, [txn.user_id, txn.membership_type_id]);
     }
 
-    // Process Stripe refund if applicable
-    if (txn.stripe_payment_id && process.env.STRIPE_SECRET_KEY) {
-      try {
-        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-        await stripe.refunds.create({ payment_intent: txn.stripe_payment_id });
-      } catch (stripeError) {
-        console.error('Stripe refund failed:', stripeError);
-        // Continue anyway - manual refund may be needed
-      }
-    }
-
     await client.query('COMMIT');
 
-    res.json({ message: 'Refund processed', amount: txn.total });
+    res.json({
+      message: 'Refund processed successfully',
+      amount: txn.total,
+      stripe_refund_id: stripeRefund ? stripeRefund.id : null,
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     next(error);
