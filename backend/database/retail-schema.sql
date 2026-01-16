@@ -127,6 +127,43 @@ CREATE TABLE IF NOT EXISTS inventory_transactions (
 );
 
 -- ============================================
+-- DISCOUNTS / PROMO CODES
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS discounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code VARCHAR(50) UNIQUE NOT NULL,
+  description TEXT,
+
+  -- Type
+  discount_type VARCHAR(20) NOT NULL,    -- percentage, fixed_amount, free_shipping
+  discount_value DECIMAL(10,2) NOT NULL,
+
+  -- Scope
+  applies_to VARCHAR(30) DEFAULT 'all',  -- all, specific_products, specific_categories
+  product_ids UUID[],
+  category_ids UUID[],
+
+  -- Limits
+  minimum_purchase DECIMAL(10,2),
+  maximum_discount DECIMAL(10,2),
+  usage_limit INTEGER,
+  usage_count INTEGER DEFAULT 0,
+  one_per_customer BOOLEAN DEFAULT true,
+
+  -- Validity
+  starts_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ,
+  is_active BOOLEAN DEFAULT true,
+
+  -- Wholesale only?
+  wholesale_only BOOLEAN DEFAULT false,
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
 -- RETAIL ORDERS (Online + In-store)
 -- ============================================
 
@@ -215,43 +252,6 @@ CREATE TABLE IF NOT EXISTS retail_order_items (
   customization JSONB,                   -- {logo_url, placement, color, etc.}
   
   created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ============================================
--- DISCOUNTS / PROMO CODES
--- ============================================
-
-CREATE TABLE IF NOT EXISTS discounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code VARCHAR(50) UNIQUE NOT NULL,
-  description TEXT,
-  
-  -- Type
-  discount_type VARCHAR(20) NOT NULL,    -- percentage, fixed_amount, free_shipping
-  discount_value DECIMAL(10,2) NOT NULL,
-  
-  -- Scope
-  applies_to VARCHAR(30) DEFAULT 'all',  -- all, specific_products, specific_categories
-  product_ids UUID[],
-  category_ids UUID[],
-  
-  -- Limits
-  minimum_purchase DECIMAL(10,2),
-  maximum_discount DECIMAL(10,2),
-  usage_limit INTEGER,
-  usage_count INTEGER DEFAULT 0,
-  one_per_customer BOOLEAN DEFAULT true,
-  
-  -- Validity
-  starts_at TIMESTAMPTZ DEFAULT NOW(),
-  expires_at TIMESTAMPTZ,
-  is_active BOOLEAN DEFAULT true,
-  
-  -- Wholesale only?
-  wholesale_only BOOLEAN DEFAULT false,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ============================================
