@@ -70,6 +70,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Setup route (one-time database initialization)
+app.use('/api/setup', require('./routes/setup'));
+
 // API routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/classes', require('./routes/classes'));
