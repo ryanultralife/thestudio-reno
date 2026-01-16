@@ -394,7 +394,10 @@ router.get('/new-members', requirePermission('report.basic'), async (req, res, n
 // ============================================
 // CUSTOM QUERY (Admin only)
 // ============================================
+// DISABLED FOR SECURITY: Raw SQL queries pose SQL injection risk
+// TODO: Replace with safe query builder or remove entirely
 
+/*
 router.post('/query', requirePermission('report.custom'), async (req, res, next) => {
   try {
     const { query } = req.body;
@@ -405,14 +408,14 @@ router.post('/query', requirePermission('report.custom'), async (req, res, next)
       return res.status(400).json({ error: 'Only SELECT queries allowed' });
     }
 
-    if (lowerQuery.includes('drop') || lowerQuery.includes('delete') || 
+    if (lowerQuery.includes('drop') || lowerQuery.includes('delete') ||
         lowerQuery.includes('update') || lowerQuery.includes('insert') ||
         lowerQuery.includes('truncate') || lowerQuery.includes('alter')) {
       return res.status(400).json({ error: 'Query contains forbidden keywords' });
     }
 
     const result = await db.query(query);
-    
+
     res.json({
       rows: result.rows,
       rowCount: result.rowCount,
@@ -422,5 +425,6 @@ router.post('/query', requirePermission('report.custom'), async (req, res, next)
     res.status(400).json({ error: error.message });
   }
 });
+*/
 
 module.exports = router;

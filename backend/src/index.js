@@ -3,6 +3,27 @@
 // ============================================
 
 require('dotenv').config();
+
+// ============================================
+// CRITICAL ENVIRONMENT VARIABLES CHECK
+// ============================================
+const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+
+if (missingVars.length > 0) {
+  console.error('❌ CRITICAL: Missing required environment variables:');
+  missingVars.forEach(v => console.error(`   - ${v}`));
+  process.exit(1);
+}
+
+// Warn about payment keys (not critical for non-payment features)
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.warn('⚠️  WARNING: STRIPE_SECRET_KEY not set - payment features will not work');
+}
+if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  console.warn('⚠️  WARNING: STRIPE_WEBHOOK_SECRET not set - webhook verification will fail');
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

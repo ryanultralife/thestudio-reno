@@ -5,7 +5,11 @@
 const jwt = require('jsonwebtoken');
 const db = require('../database/connection');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// SECURITY: Require JWT_SECRET to be set - no fallback
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('❌ JWT_SECRET environment variable must be set for security');
+}
 const JWT_EXPIRES = '7d';
 
 // ============================================
