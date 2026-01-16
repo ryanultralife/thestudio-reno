@@ -210,8 +210,11 @@ SELECT
   -- Upcoming Classes
   COUNT(DISTINCT fc.id) FILTER (WHERE fc.date >= CURRENT_DATE) as upcoming_classes,
 
-  -- Attendance Stats
-  AVG(c.checked_in_count) FILTER (WHERE c.date >= NOW() - INTERVAL '90 days') as avg_attendance_last_90_days,
+  -- Attendance Stats (count checked-in bookings per class)
+  AVG(
+    (SELECT COUNT(*) FROM bookings b2
+     WHERE b2.class_id = c.id AND b2.status = 'checked_in')
+  ) FILTER (WHERE c.date >= NOW() - INTERVAL '90 days') as avg_attendance_last_90_days,
 
   -- Activity Flags
   CASE WHEN CURRENT_DATE - MAX(c.date) > 30 THEN true ELSE false END as inactive_30_days,
