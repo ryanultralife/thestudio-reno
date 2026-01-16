@@ -18,43 +18,31 @@ CREATE TABLE IF NOT EXISTS site_settings (
 -- ============================================
 -- LOCATIONS (Multi-location support)
 -- ============================================
+-- Note: Base locations table already exists from schema.sql
+-- We're adding CMS-specific columns here
 
-CREATE TABLE IF NOT EXISTS locations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL,
-  slug VARCHAR(100) UNIQUE NOT NULL,
-  address_line1 VARCHAR(255),
-  address_line2 VARCHAR(255),
-  city VARCHAR(100) DEFAULT 'Reno',
-  state VARCHAR(50) DEFAULT 'NV',
-  zip VARCHAR(20),
-  phone VARCHAR(30),
-  email VARCHAR(255),
-  
-  -- Display
-  description TEXT,
-  image_url TEXT,
-  images JSONB DEFAULT '[]',
-  
-  -- Hours
-  hours JSONB DEFAULT '{}',
-  
-  -- Features
-  has_tea_lounge BOOLEAN DEFAULT false,
-  has_retail BOOLEAN DEFAULT false,
-  
-  -- Maps
-  google_maps_url TEXT,
-  latitude DECIMAL(10, 8),
-  longitude DECIMAL(11, 8),
-  
-  -- Status
-  is_active BOOLEAN DEFAULT true,
-  sort_order INTEGER DEFAULT 0,
-  
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS slug VARCHAR(100);
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS address_line1 VARCHAR(255);
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS address_line2 VARCHAR(255);
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS hours JSONB DEFAULT '{}';
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS has_tea_lounge BOOLEAN DEFAULT false;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS has_retail BOOLEAN DEFAULT false;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS google_maps_url TEXT;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 8);
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS longitude DECIMAL(11, 8);
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Add unique constraint on slug if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'locations_slug_key') THEN
+    ALTER TABLE locations ADD CONSTRAINT locations_slug_key UNIQUE (slug);
+  END IF;
+END $$;
 
 -- ============================================
 -- MEDIA LIBRARY
@@ -340,10 +328,35 @@ CREATE INDEX idx_newsletter_status ON newsletter_subscribers(status);
 -- ============================================
 -- SEED: LOCATIONS
 -- ============================================
+-- Note: schema.sql already inserts basic locations, so we UPDATE them here with CMS data
 
-INSERT INTO locations (name, slug, address_line1, city, state, zip, phone, email, description, has_tea_lounge, google_maps_url, sort_order) VALUES
-('The Studio - Original', 'south-virginia', '1085 S Virginia St', 'Reno', 'NV', '89502', '(775) 284-5545', 'thestudioreno@gmail.com', 'Our original location featuring the Tea & Elixir Lounge', true, 'https://www.google.com/maps/place/The+Studio+Reno/@39.513131,-119.807137,15z', 1),
-('The Studio - Moran', 'moran-street', '600 S Virginia St', 'Reno', 'NV', '89501', '(775) 284-5545', 'thestudioreno@gmail.com', 'Our second location with entrance on Moran Street', false, 'https://goo.gl/maps/WZ4tESMspe1mdMm66', 2);
+UPDATE locations SET
+  slug = 'south-virginia',
+  address_line1 = '1085 S Virginia St',
+  city = 'Reno',
+  state = 'NV',
+  zip = '89502',
+  phone = '(775) 284-5545',
+  email = 'thestudioreno@gmail.com',
+  description = 'Our original location featuring the Tea & Elixir Lounge',
+  has_tea_lounge = true,
+  google_maps_url = 'https://www.google.com/maps/place/The+Studio+Reno/@39.513131,-119.807137,15z',
+  sort_order = 1
+WHERE name = 'Main Studio';
+
+UPDATE locations SET
+  slug = 'moran-street',
+  address_line1 = '600 S Virginia St',
+  city = 'Reno',
+  state = 'NV',
+  zip = '89501',
+  phone = '(775) 284-5545',
+  email = 'thestudioreno@gmail.com',
+  description = 'Our second location with entrance on Moran Street',
+  has_tea_lounge = false,
+  google_maps_url = 'https://goo.gl/maps/WZ4tESMspe1mdMm66',
+  sort_order = 2
+WHERE name = 'Moran Studio';
 
 -- ============================================
 -- SEED: SITE SETTINGS
