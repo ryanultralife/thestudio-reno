@@ -11,8 +11,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS mindbody_import_date TIMESTAMP;
 -- Add Mindbody reference columns to classes table
 ALTER TABLE classes ADD COLUMN IF NOT EXISTS mindbody_class_id VARCHAR(50) UNIQUE;
 
--- Add Mindbody reference columns to class_bookings (visits)
-ALTER TABLE class_bookings ADD COLUMN IF NOT EXISTS mindbody_visit_id VARCHAR(50) UNIQUE;
+-- Add Mindbody reference columns to bookings (visits)
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS mindbody_visit_id VARCHAR(50) UNIQUE;
 
 -- Migration progress tracking table
 CREATE TABLE IF NOT EXISTS mindbody_migration_progress (
