@@ -56,14 +56,38 @@ async function runSetup(req, res) {
     ];
 
     // Run each migration file
+    const results = [];
     for (const migration of migrations) {
-      const filePath = path.join(__dirname, '../../database', migration);
-      console.log(`  Running ${migration}...`);
+      try {
+        const filePath = path.join(__dirname, '../../database', migration);
+        console.log(`  Running ${migration}...`);
 
-      const sql = fs.readFileSync(filePath, 'utf8');
-      await db.query(sql);
+        const sql = fs.readFileSync(filePath, 'utf8');
 
-      console.log(`  ✅ ${migration} completed`);
+        // Split SQL by statement and run each separately
+        // This allows us to continue past "already exists" errors
+        const statements = sql.split(';').filter(s => s.trim());
+
+        for (const statement of statements) {
+          if (statement.trim()) {
+            try {
+              await db.query(statement);
+            } catch (err) {
+              // Ignore "already exists" errors, but fail on others
+              if (!err.message.includes('already exists')) {
+                throw err;
+              }
+            }
+          }
+        }
+
+        console.log(`  ✅ ${migration} completed`);
+        results.push({ file: migration, status: 'success' });
+      } catch (error) {
+        console.error(`  ❌ ${migration} failed:`, error.message);
+        results.push({ file: migration, status: 'failed', error: error.message });
+        throw error; // Stop on first real error
+      }
     }
 
     // Create default admin user
