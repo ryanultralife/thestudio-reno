@@ -64,6 +64,7 @@ app.use('/api/social', require('./routes/social'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/retail', require('./routes/retail'));
 app.use('/api/cms', require('./routes/cms'));
+app.use('/api/coop', require('./routes/coop'));
 
 // ============================================
 // SERVE FRONTEND IN PRODUCTION

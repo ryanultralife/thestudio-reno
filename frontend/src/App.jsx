@@ -40,6 +40,8 @@ const Icons = {
   AlertCircle: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   CheckCircle: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   Swap: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>,
+  Building: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+  Key: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>,
 };
 
 function Modal({ isOpen, onClose, title, children, size = 'md' }) {
@@ -119,6 +121,7 @@ function Sidebar({ user, currentPage, setCurrentPage, onLogout }) {
     { id: 'clients', label: 'Clients', icon: Icons.Users, roles: ['front_desk', 'manager', 'owner', 'admin'] },
     { id: 'sell', label: 'Sell', icon: Icons.CreditCard, roles: ['front_desk', 'manager', 'owner', 'admin'] },
     { id: 'subs', label: 'Sub Requests', icon: Icons.Swap, roles: ['teacher', 'manager', 'owner', 'admin'] },
+    { id: 'coop', label: 'Co-op Rentals', icon: Icons.Building, roles: ['teacher', 'manager', 'owner', 'admin'] },
     { id: 'reports', label: 'Reports', icon: Icons.Chart, roles: ['manager', 'owner', 'admin'] },
     { id: 'settings', label: 'Settings', icon: Icons.Settings, roles: ['owner', 'admin'] },
   ];
@@ -732,6 +735,268 @@ function ReportsPage() {
   );
 }
 
+function CoopPage() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('rooms');
+  const [rooms, setRooms] = useState([]);
+  const [contracts, setContracts] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [referrals, setReferrals] = useState({ referrals: [], summary: null });
+  const [coopClasses, setCoopClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+
+  const isManager = ['manager', 'owner', 'admin'].includes(user.role);
+  const isTeacher = user.role === 'teacher' || isManager;
+
+  const tabs = [
+    { id: 'rooms', label: 'Rooms', show: true },
+    { id: 'bookings', label: 'My Bookings', show: isTeacher },
+    { id: 'classes', label: 'Co-op Classes', show: true },
+    { id: 'contracts', label: 'Contracts', show: isManager },
+    { id: 'referrals', label: 'Referrals', show: isTeacher },
+  ].filter(t => t.show);
+
+  useEffect(() => { loadData(); }, [activeTab]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'rooms') {
+        const data = await api('/coop/rooms');
+        setRooms(data.rooms || []);
+      } else if (activeTab === 'bookings') {
+        const data = await api('/coop/bookings/mine');
+        setBookings(data.bookings || []);
+      } else if (activeTab === 'classes') {
+        const data = await api('/coop/classes');
+        setCoopClasses(data.classes || []);
+      } else if (activeTab === 'contracts' && isManager) {
+        const data = await api('/coop/contracts');
+        setContracts(data.contracts || []);
+      } else if (activeTab === 'referrals' && isTeacher) {
+        const data = await api('/coop/referrals/mine');
+        setReferrals(data);
+      }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  const roomTypeLabels = { yoga_large: 'Large Yoga Room', yoga_small: 'Small Room', massage: 'Massage Room', tea_lounge: 'Tea Lounge', other: 'Other' };
+
+  const RoomCard = ({ room }) => (
+    <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h3 className="font-semibold text-gray-900">{room.name}</h3>
+          <p className="text-sm text-gray-500">{room.location_name} &bull; {roomTypeLabels[room.room_type]}</p>
+        </div>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${room.available_for_rental ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+          {room.available_for_rental ? 'Available' : 'Traditional Only'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+        <div><span className="text-gray-500">Capacity:</span> <span className="font-medium">{room.capacity}</span></div>
+        {room.monthly_rate && <div><span className="text-gray-500">Monthly:</span> <span className="font-medium">${room.monthly_rate}</span></div>}
+      </div>
+      {room.current_tenant && <div className="bg-amber-50 text-amber-800 px-3 py-2 rounded-lg text-sm mb-3"><Icons.User /> <span className="ml-1">{room.current_tenant}</span></div>}
+      {room.available_for_rental && isTeacher && (
+        <button onClick={() => { setSelectedRoom(room); setShowBookingModal(true); }} className="w-full mt-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium">Book Room</button>
+      )}
+    </div>
+  );
+
+  const BookingCard = ({ booking }) => (
+    <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <h3 className="font-semibold text-gray-900">{booking.room_name}</h3>
+          <p className="text-sm text-gray-500">{booking.location_name}</p>
+        </div>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>{booking.status}</span>
+      </div>
+      <div className="text-sm space-y-1">
+        <p><span className="text-gray-500">Date:</span> {new Date(booking.date).toLocaleDateString()}</p>
+        <p><span className="text-gray-500">Time:</span> {booking.start_time} - {booking.end_time}</p>
+        <p><span className="text-gray-500">Rental:</span> <span className="font-medium">${booking.rental_price}</span></p>
+      </div>
+      <div className="mt-3 pt-3 border-t flex gap-2">
+        <span className={`px-2 py-1 rounded text-xs ${booking.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{booking.payment_status}</span>
+      </div>
+    </div>
+  );
+
+  const CoopClassCard = ({ cls }) => (
+    <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <h3 className="font-semibold text-gray-900">{cls.class_name}</h3>
+          <p className="text-sm text-gray-500">{cls.teacher_first_name} {cls.teacher_last_name}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-bold text-amber-600">${cls.coop_drop_in_price}</p>
+          <p className="text-xs text-gray-500">Member: ${cls.coop_member_price}</p>
+        </div>
+      </div>
+      <div className="text-sm space-y-1">
+        <p><span className="text-gray-500">Date:</span> {new Date(cls.date).toLocaleDateString()}</p>
+        <p><span className="text-gray-500">Time:</span> {cls.start_time}</p>
+        <p><span className="text-gray-500">Location:</span> {cls.location_name} - {cls.room_name}</p>
+        <p><span className="text-gray-500">Spots:</span> {cls.spots_left} / {cls.capacity}</p>
+      </div>
+      <div className="mt-3 pt-3 border-t flex items-center justify-between">
+        <span className="text-xs text-gray-500">Credits used: {cls.credits_used}/{cls.max_credits}</span>
+      </div>
+    </div>
+  );
+
+  const ContractCard = ({ contract }) => (
+    <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <h3 className="font-semibold text-gray-900">{contract.tenant_name || 'Unnamed Tenant'}</h3>
+          <p className="text-sm text-gray-500">{contract.room_name} &bull; {contract.location_name}</p>
+        </div>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${contract.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{contract.status}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div><span className="text-gray-500">Monthly:</span> <span className="font-medium">${contract.monthly_rate}</span></div>
+        {contract.sessions_included && <div><span className="text-gray-500">Sessions:</span> <span className="font-medium">{contract.sessions_included}/mo</span></div>}
+        <div><span className="text-gray-500">Started:</span> {new Date(contract.start_date).toLocaleDateString()}</div>
+        <div><span className="text-gray-500">Type:</span> {contract.tenant_type}</div>
+      </div>
+    </div>
+  );
+
+  const BookingModal = () => {
+    const [date, setDate] = useState('');
+    const [startTime, setStartTime] = useState('09:00');
+    const [endTime, setEndTime] = useState('10:30');
+    const [price, setPrice] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+
+    const checkPrice = async () => {
+      if (!date || !selectedRoom) return;
+      try {
+        const data = await api(`/coop/rooms/${selectedRoom.id}/price?date=${date}&start_time=${startTime}`);
+        setPrice(data.price);
+      } catch (err) { setPrice(selectedRoom.default_block_rate); }
+    };
+
+    useEffect(() => { if (date) checkPrice(); }, [date, startTime]);
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setSubmitting(true);
+      try {
+        await api('/coop/bookings', { method: 'POST', body: JSON.stringify({ room_id: selectedRoom.id, date, start_time: startTime, end_time: endTime }) });
+        setShowBookingModal(false);
+        setSelectedRoom(null);
+        loadData();
+      } catch (err) { alert(err.message); }
+      finally { setSubmitting(false); }
+    };
+
+    return (
+      <Modal isOpen={showBookingModal} onClose={() => { setShowBookingModal(false); setSelectedRoom(null); }} title={`Book ${selectedRoom?.name}`} size="md">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 border rounded-lg" required /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">End Time</label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div>
+          </div>
+          {price && <div className="bg-amber-50 border border-amber-200 rounded-lg p-4"><p className="text-sm text-gray-600">Rental Price</p><p className="text-2xl font-bold text-amber-600">${price}</p></div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => { setShowBookingModal(false); setSelectedRoom(null); }} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={submitting || !date} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">{submitting ? 'Booking...' : 'Book Room'}</button>
+          </div>
+        </form>
+      </Modal>
+    );
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Co-op Space Rentals</h1>
+        <button onClick={loadData} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.Refresh /></button>
+      </div>
+
+      <div className="flex gap-2 border-b">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-4 py-2 font-medium border-b-2 -mb-px transition ${activeTab === t.id ? 'text-amber-600 border-amber-600' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>{t.label}</button>
+        ))}
+      </div>
+
+      {activeTab === 'rooms' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {rooms.length === 0 ? <EmptyState icon={Icons.Building} message="No rooms configured" /> : rooms.map(r => <RoomCard key={r.id} room={r} />)}
+        </div>
+      )}
+
+      {activeTab === 'bookings' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {bookings.length === 0 ? <EmptyState icon={Icons.Calendar} message="No room bookings yet" action={<button onClick={() => setActiveTab('rooms')} className="text-amber-600 hover:text-amber-700 font-medium">Book a room</button>} /> : bookings.map(b => <BookingCard key={b.id} booking={b} />)}
+        </div>
+      )}
+
+      {activeTab === 'classes' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {coopClasses.length === 0 ? <EmptyState icon={Icons.Calendar} message="No co-op classes scheduled" /> : coopClasses.map(c => <CoopClassCard key={c.id} cls={c} />)}
+        </div>
+      )}
+
+      {activeTab === 'contracts' && isManager && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="font-semibold text-gray-900">Monthly Rental Contracts</h2>
+            <button className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm"><Icons.Plus /> New Contract</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {contracts.length === 0 ? <EmptyState icon={Icons.Key} message="No active contracts" /> : contracts.map(c => <ContractCard key={c.id} contract={c} />)}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'referrals' && isTeacher && (
+        <div className="space-y-6">
+          {referrals.summary && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl shadow-sm p-4 border"><p className="text-sm text-gray-500">Total Referrals</p><p className="text-2xl font-bold text-gray-900">{referrals.summary.total_referrals || 0}</p></div>
+              <div className="bg-white rounded-xl shadow-sm p-4 border"><p className="text-sm text-gray-500">Conversions</p><p className="text-2xl font-bold text-green-600">{referrals.summary.conversions || 0}</p></div>
+              <div className="bg-white rounded-xl shadow-sm p-4 border"><p className="text-sm text-gray-500">Bonus Earned</p><p className="text-2xl font-bold text-amber-600">${referrals.summary.total_bonus_paid || 0}</p></div>
+              <div className="bg-white rounded-xl shadow-sm p-4 border"><p className="text-sm text-gray-500">Room Credits</p><p className="text-2xl font-bold text-blue-600">${referrals.summary.available_room_credits || 0}</p></div>
+            </div>
+          )}
+          <div className="bg-white rounded-xl shadow-sm p-5 border">
+            <h3 className="font-semibold text-gray-900 mb-4">Your Referrals</h3>
+            {referrals.referrals.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No referrals yet. When students you bring become members, you'll earn $25 room credits!</p>
+            ) : (
+              <div className="space-y-3">
+                {referrals.referrals.map(r => (
+                  <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div><p className="font-medium">{r.first_name} {r.last_name}</p><p className="text-sm text-gray-500">{r.email}</p></div>
+                    <div className="text-right">
+                      <span className={`px-2 py-1 rounded text-xs ${r.converted_to_member ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{r.converted_to_member ? 'Member' : 'Pending'}</span>
+                      {r.bonus_status === 'paid' && <p className="text-xs text-green-600 mt-1">+${r.bonus_amount} credit</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <BookingModal />
+    </div>
+  );
+}
+
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [classTypes, setClassTypes] = useState([]);
@@ -817,6 +1082,7 @@ export default function App() {
       case 'clients': return <ClientsPage />;
       case 'sell': return <SellPage />;
       case 'subs': return <SubRequestsPage />;
+      case 'coop': return <CoopPage />;
       case 'reports': return <ReportsPage />;
       case 'settings': return <SettingsPage />;
       default: return <DashboardPage />;

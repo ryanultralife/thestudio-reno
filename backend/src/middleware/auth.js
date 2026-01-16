@@ -197,6 +197,40 @@ function requireRole(...roles) {
 }
 
 // ============================================
+// OPTIONAL AUTHENTICATION
+// ============================================
+
+/**
+ * Optional authentication - populates req.user if valid token, otherwise continues
+ */
+async function optionalAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return next(); // No token, continue without user
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+
+    const result = await db.query(
+      `SELECT id, email, first_name, last_name, role, is_active
+       FROM users WHERE id = $1`,
+      [decoded.userId]
+    );
+
+    if (result.rows.length > 0 && result.rows[0].is_active) {
+      req.user = result.rows[0];
+    }
+
+    next();
+  } catch (error) {
+    // Invalid token, continue without user
+    next();
+  }
+}
+
+// ============================================
 // CONVENIENCE MIDDLEWARE
 // ============================================
 
@@ -274,23 +308,24 @@ module.exports = {
   generateToken,
   verifyToken,
   authenticate,
-  
+  optionalAuth,
+
   // Permission checks
   userHasPermission,
-  
+
   // Middleware factories
   requirePermission,
   requireAllPermissions,
   requireRole,
   requireOwnershipOr,
   requireClassAccess,
-  
+
   // Convenience
   requireStaff,
   requireManager,
   requireOwner,
   requireAdmin,
-  
+
   // Helpers
   isTeacherOfClass,
   loadPermissions,
