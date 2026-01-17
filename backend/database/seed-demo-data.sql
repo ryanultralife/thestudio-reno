@@ -133,13 +133,15 @@ ON CONFLICT DO NOTHING;
 -- ============================================
 
 -- Create purchase transactions for memberships
-INSERT INTO transactions (user_id, membership_type_id, type, status, payment_method, total, created_at)
+INSERT INTO transactions (user_id, membership_type_id, type, status, payment_method, amount, tax, total, created_at)
 SELECT
     um.user_id,
     um.membership_type_id,
     'membership_purchase',
     'completed',
     CASE WHEN RANDOM() < 0.8 THEN 'card' ELSE 'cash' END,
+    mt.price,
+    0.00,
     mt.price,
     um.start_date
 FROM user_memberships um
