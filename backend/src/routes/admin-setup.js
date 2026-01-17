@@ -1,6 +1,8 @@
 // API endpoint to populate demo data
-// Access via: POST /api/admin/populate-demo
-// Requires admin authentication
+// Mounted at: /api/setup-demo
+// Public endpoint: POST /api/setup-demo/populate (no auth, only works once)
+// Admin endpoint: POST /api/setup-demo/populate-admin (with auth, can repopulate)
+// Status check: GET /api/setup-demo/status
 
 const express = require('express');
 const router = express.Router();
@@ -9,7 +11,8 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
 
-router.post('/populate-demo', authenticate, requireRole('admin'), async (req, res, next) => {
+// Admin-only endpoint - can repopulate even if data exists
+router.post('/populate-admin', authenticate, requireRole('admin'), async (req, res, next) => {
   const client = await db.getClient();
 
   try {
@@ -73,8 +76,8 @@ router.post('/populate-demo', authenticate, requireRole('admin'), async (req, re
   }
 });
 
-// Check demo data status
-router.get('/demo-status', authenticate, requireRole('admin'), async (req, res, next) => {
+// Check demo data status (admin only)
+router.get('/status', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
     const studentCount = await db.query(
       "SELECT COUNT(*) FROM users WHERE role = 'student' AND email LIKE '%@demo.com'"
@@ -101,7 +104,7 @@ router.get('/demo-status', authenticate, requireRole('admin'), async (req, res, 
 });
 
 // Public endpoint that only works if no demo data exists (safety check)
-router.post('/populate-demo-public', async (req, res, next) => {
+router.post('/populate', async (req, res, next) => {
   const client = await db.getClient();
 
   try {

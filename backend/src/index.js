@@ -99,7 +99,7 @@ try {
   console.log('  ✓ Loaded teacher-insights routes');
 
   app.use('/api/admin', require('./routes/admin'));
-  app.use('/api/admin', require('./routes/admin-setup'));
+  app.use('/api/setup-demo', require('./routes/admin-setup'));
   app.use('/api/notifications', require('./routes/notifications'));
   app.use('/api/social', require('./routes/social'));
   app.use('/api/webhooks', require('./routes/webhooks'));
