@@ -48,35 +48,38 @@ VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- Create teacher records
-INSERT INTO teachers (user_id, bio, certifications, specialties, hourly_rate, is_active)
+INSERT INTO teachers (user_id, bio, certifications, specialties, default_hourly_rate, default_per_class_rate, is_active)
 SELECT
     u.id,
     'Experienced yoga instructor passionate about helping students find balance and strength.',
     ARRAY['RYT-200', 'Yin Yoga Certified'],
     ARRAY['Vinyasa', 'Yin', 'Meditation'],
     75.00,
+    60.00,
     true
 FROM users u WHERE u.email = 'sarah.yoga@demo.com'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO teachers (user_id, bio, certifications, specialties, hourly_rate, is_active)
+INSERT INTO teachers (user_id, bio, certifications, specialties, default_hourly_rate, default_per_class_rate, is_active)
 SELECT
     u.id,
     'Mindfulness and meditation expert with 10+ years of teaching experience.',
     ARRAY['RYT-500', 'Meditation Teacher Training'],
     ARRAY['Meditation', 'Power', 'Philosophy'],
     85.00,
+    70.00,
     true
 FROM users u WHERE u.email = 'raj.mindful@demo.com'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO teachers (user_id, bio, certifications, specialties, hourly_rate, is_active)
+INSERT INTO teachers (user_id, bio, certifications, specialties, default_hourly_rate, default_per_class_rate, is_active)
 SELECT
     u.id,
     'Dynamic power yoga specialist focused on building strength and confidence.',
     ARRAY['RYT-200', 'Power Yoga Specialist'],
     ARRAY['Power', 'Flow', 'Heated'],
     80.00,
+    65.00,
     true
 FROM users u WHERE u.email = 'lisa.power@demo.com'
 ON CONFLICT DO NOTHING;
