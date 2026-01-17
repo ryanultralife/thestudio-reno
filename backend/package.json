@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "start:safe": "node src/safe-start.js",
+    "start:minimal": "node src/minimal-test.js",
     "dev": "nodemon src/index.js",
     "db:setup": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql",
     "db:seed": "psql $DATABASE_URL -f database/seed.sql",
