@@ -5,10 +5,12 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "start:safe": "node src/safe-start.js",
     "dev": "nodemon src/index.js",
     "db:setup": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql",
     "db:seed": "psql $DATABASE_URL -f database/seed.sql",
-    "db:reset": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql && psql $DATABASE_URL -f database/seed.sql"
+    "db:reset": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql && psql $DATABASE_URL -f database/seed.sql",
+    "db:demo": "node database/populate-demo.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
