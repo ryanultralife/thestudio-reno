@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { body, query, validationResult } = require('express-validator');
 const db = require('../database/connection');
-const { authenticate } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/permissions');
+const { authenticate, requirePermission } = require('../middleware/auth');
 
 // ============================================
 // GET ALL SERIES
