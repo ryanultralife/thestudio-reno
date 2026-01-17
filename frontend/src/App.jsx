@@ -803,33 +803,75 @@ function SettingsPage() {
 }
 
 function MyAccountPage() {
+  const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({
+  const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-  const { user } = useContext(AuthContext);
+  const [profileForm, setProfileForm] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    email_opt_in: true,
+    sms_opt_in: false
+  });
+  const [transactions, setTransactions] = useState([]);
+  const [preferences, setPreferences] = useState(null);
+  const { user, api } = useContext(AuthContext);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        phone: user.phone || '',
+        email_opt_in: user.email_opt_in !== false,
+        sms_opt_in: user.sms_opt_in === true
+      });
+      loadData();
+    }
+  }, [user]);
+
+  async function loadData() {
+    try {
+      // Load billing history
+      const txns = await api('/transactions');
+      setTransactions(txns.transactions || []);
+
+      // Load preferences
+      const prefs = await api('/auth/me');
+      setPreferences(prefs);
+    } catch (err) {
+      console.error('Error loading data:', err);
+    }
+  }
+
+  const handlePasswordChange = (e) => {
+    setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
     setError('');
     setSuccess('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleProfileChange = (e) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setProfileForm({ ...profileForm, [e.target.name]: value });
+  };
+
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (formData.newPassword !== formData.confirmPassword) {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setError('New passwords do not match');
       return;
     }
 
-    if (formData.newPassword.length < 8) {
+    if (passwordForm.newPassword.length < 8) {
       setError('New password must be at least 8 characters');
       return;
     }
@@ -839,12 +881,12 @@ function MyAccountPage() {
       await api('/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({
-          current_password: formData.currentPassword,
-          new_password: formData.newPassword
+          current_password: passwordForm.currentPassword,
+          new_password: passwordForm.newPassword
         })
       });
       setSuccess('Password changed successfully!');
-      setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
       setError(err.message || 'Failed to change password');
     } finally {
@@ -852,96 +894,325 @@ function MyAccountPage() {
     }
   };
 
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      await api('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify(profileForm)
+      });
+      setSuccess('Profile updated successfully!');
+      // Reload user data
+      const updated = await api('/auth/me');
+      // Update user in context if needed
+    } catch (err) {
+      setError(err.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const tabs = [
+    { id: 'profile', label: 'Profile', icon: '👤' },
+    { id: 'security', label: 'Security', icon: '🔒' },
+    { id: 'billing', label: 'Billing', icon: '💳' },
+    { id: 'preferences', label: 'Preferences', icon: '⚙️' }
+  ];
+
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-4xl">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">My Account</h1>
 
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile Information</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <p className="text-gray-900">{user?.first_name} {user?.last_name}</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <p className="text-gray-900">{user?.email}</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <p className="text-gray-900 capitalize">{user?.role?.replace('_', ' ')}</p>
-          </div>
+      {/* Tabs */}
+      <div className="border-b border-gray-200 mb-6">
+        <div className="flex space-x-8">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setError('');
+                setSuccess('');
+              }}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm transition ${
+                activeTab === tab.id
+                  ? 'border-amber-600 text-amber-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <span className="mr-2">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
+      {/* Messages */}
+      {success && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm">
+          {success}
+        </div>
+      )}
 
-        {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm">
-            {success}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Profile Tab */}
+      {activeTab === 'profile' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile Information</h2>
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  name="first_name"
+                  value={profileForm.first_name}
+                  onChange={handleProfileChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  name="last_name"
+                  value={profileForm.last_name}
+                  onChange={handleProfileChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                value={user?.email}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Contact support to change email</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                value={profileForm.phone}
+                onChange={handleProfileChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role
+              </label>
+              <p className="text-gray-900 capitalize">{user?.role?.replace('_', ' ')}</p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Security Tab */}
+      {activeTab === 'security' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Current Password
+              </label>
+              <input
+                type="password"
+                name="currentPassword"
+                value={passwordForm.currentPassword}
+                onChange={handlePasswordChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                New Password
+              </label>
+              <input
+                type="password"
+                name="newPassword"
+                value={passwordForm.newPassword}
+                onChange={handlePasswordChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={passwordForm.confirmPassword}
+                onChange={handlePasswordChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+            >
+              {loading ? 'Changing Password...' : 'Change Password'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Billing Tab */}
+      {activeTab === 'billing' && (
+        <div className="space-y-6">
+          {/* Payment Methods */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods</h2>
+            <p className="text-gray-600 mb-4">
+              Payment methods are managed through Stripe during checkout.
+            </p>
+            <p className="text-sm text-gray-500">
+              When you purchase a membership, you'll be able to save your payment method for future purchases.
+            </p>
           </div>
-        )}
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
-            {error}
+          {/* Billing History */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Billing History</h2>
+            {transactions.length === 0 ? (
+              <p className="text-gray-600">No transactions yet</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Description</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map(txn => (
+                      <tr key={txn.id} className="border-b border-gray-100">
+                        <td className="py-3 px-4 text-sm text-gray-900">
+                          {new Date(txn.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-900">
+                          {txn.description || txn.type}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-900">
+                          ${txn.amount.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            txn.status === 'completed'
+                              ? 'bg-green-100 text-green-800'
+                              : txn.status === 'pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {txn.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Current Password
-            </label>
-            <input
-              type="password"
-              name="currentPassword"
-              value={formData.currentPassword}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            />
-          </div>
+      {/* Preferences Tab */}
+      {activeTab === 'preferences' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Communication Preferences</h2>
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-start">
+                <input
+                  type="checkbox"
+                  name="email_opt_in"
+                  id="email_opt_in"
+                  checked={profileForm.email_opt_in}
+                  onChange={handleProfileChange}
+                  className="mt-1 h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+                />
+                <label htmlFor="email_opt_in" className="ml-3 block">
+                  <span className="text-sm font-medium text-gray-700">Email Notifications</span>
+                  <p className="text-sm text-gray-500">
+                    Receive class reminders, membership updates, and studio news via email
+                  </p>
+                </label>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              New Password
-            </label>
-            <input
-              type="password"
-              name="newPassword"
-              value={formData.newPassword}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            />
-            <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters</p>
-          </div>
+              <div className="flex items-start">
+                <input
+                  type="checkbox"
+                  name="sms_opt_in"
+                  id="sms_opt_in"
+                  checked={profileForm.sms_opt_in}
+                  onChange={handleProfileChange}
+                  className="mt-1 h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+                />
+                <label htmlFor="sms_opt_in" className="ml-3 block">
+                  <span className="text-sm font-medium text-gray-700">SMS Notifications</span>
+                  <p className="text-sm text-gray-500">
+                    Receive text message reminders for your upcoming classes (standard rates apply)
+                  </p>
+                </label>
+              </div>
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Confirm New Password
-            </label>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
-          >
-            {loading ? 'Changing Password...' : 'Change Password'}
-          </button>
-        </form>
-      </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+            >
+              {loading ? 'Saving...' : 'Save Preferences'}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
