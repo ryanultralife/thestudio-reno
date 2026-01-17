@@ -1291,6 +1291,14 @@ function MyAccountPage() {
   });
   const [transactions, setTransactions] = useState([]);
   const [preferences, setPreferences] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({
+    venmo_handle: '',
+    zelle_email: '',
+    zelle_phone: '',
+    paypal_email: '',
+    cashapp_handle: '',
+    payment_notes: ''
+  });
   const { user, api } = useContext(AuthContext);
 
   useEffect(() => {
@@ -1315,6 +1323,23 @@ function MyAccountPage() {
       // Load preferences
       const prefs = await api('/auth/me');
       setPreferences(prefs);
+
+      // Load payment info if teacher
+      if (user?.role === 'teacher') {
+        try {
+          const teacherData = await api('/teachers/me');
+          setPaymentForm({
+            venmo_handle: teacherData.venmo_handle || '',
+            zelle_email: teacherData.zelle_email || '',
+            zelle_phone: teacherData.zelle_phone || '',
+            paypal_email: teacherData.paypal_email || '',
+            cashapp_handle: teacherData.cashapp_handle || '',
+            payment_notes: teacherData.payment_notes || ''
+          });
+        } catch (err) {
+          console.error('Error loading teacher payment info:', err);
+        }
+      }
     } catch (err) {
       console.error('Error loading data:', err);
     }
@@ -1386,10 +1411,34 @@ function MyAccountPage() {
     }
   };
 
+  const handlePaymentChange = (e) => {
+    setPaymentForm({ ...paymentForm, [e.target.name]: e.target.value });
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      await api('/teachers/me/payment-info', {
+        method: 'PUT',
+        body: JSON.stringify(paymentForm)
+      });
+      setSuccess('Payment information updated successfully!');
+    } catch (err) {
+      setError(err.message || 'Failed to update payment info');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: '👤' },
     { id: 'security', label: 'Security', icon: '🔒' },
     { id: 'billing', label: 'Billing', icon: '💳' },
+    ...(user?.role === 'teacher' ? [{ id: 'payment', label: 'Payment Settings', icon: '💰' }] : []),
     { id: 'preferences', label: 'Preferences', icon: '⚙️' }
   ];
 
@@ -1628,6 +1677,136 @@ function MyAccountPage() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Payment Settings Tab (Teachers Only) */}
+      {activeTab === 'payment' && user?.role === 'teacher' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Payment Information</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Set up your payment methods so students can pay you directly for co-op classes.
+            Students will see this information when booking your classes.
+          </p>
+
+          <form onSubmit={handlePaymentSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Venmo Username
+                </label>
+                <div className="flex items-center">
+                  <span className="text-gray-500 mr-1">@</span>
+                  <input
+                    type="text"
+                    name="venmo_handle"
+                    value={paymentForm.venmo_handle}
+                    onChange={handlePaymentChange}
+                    placeholder="username"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">e.g., @JohnDoe</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cash App Handle
+                </label>
+                <div className="flex items-center">
+                  <span className="text-gray-500 mr-1">$</span>
+                  <input
+                    type="text"
+                    name="cashapp_handle"
+                    value={paymentForm.cashapp_handle}
+                    onChange={handlePaymentChange}
+                    placeholder="username"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">e.g., $JohnDoe</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Zelle Email
+                </label>
+                <input
+                  type="email"
+                  name="zelle_email"
+                  value={paymentForm.zelle_email}
+                  onChange={handlePaymentChange}
+                  placeholder="your@email.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Zelle Phone
+                </label>
+                <input
+                  type="tel"
+                  name="zelle_phone"
+                  value={paymentForm.zelle_phone}
+                  onChange={handlePaymentChange}
+                  placeholder="(555) 123-4567"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  PayPal Email
+                </label>
+                <input
+                  type="email"
+                  name="paypal_email"
+                  value={paymentForm.paypal_email}
+                  onChange={handlePaymentChange}
+                  placeholder="your@email.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Notes / Instructions
+              </label>
+              <textarea
+                name="payment_notes"
+                value={paymentForm.payment_notes}
+                onChange={handlePaymentChange}
+                rows={3}
+                placeholder="e.g., Please send payment within 24 hours. Include class date in payment note."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Optional instructions for students (e.g., payment timeline, what to include in notes)
+              </p>
+            </div>
+
+            <div className="pt-4 border-t">
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+              >
+                {loading ? 'Saving...' : 'Save Payment Settings'}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 How it works</h3>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Students will see your payment information when booking your co-op classes</li>
+              <li>• You'll receive payment directly from students via your preferred method</li>
+              <li>• You can update these settings anytime</li>
+              <li>• Only filled-in payment methods will be shown to students</li>
+            </ul>
           </div>
         </div>
       )}
