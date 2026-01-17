@@ -421,12 +421,56 @@ function ClientDetailView({ client, onUpdate, onToast }) {
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [permissions, setPermissions] = useState(null);
+  const [allPermissions, setAllPermissions] = useState([]);
+  const [loadingPerms, setLoadingPerms] = useState(false);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Icons.User },
     { id: 'bookings', label: 'Bookings', icon: Icons.Calendar },
-    { id: 'notes', label: 'Notes', icon: Icons.File }
+    { id: 'notes', label: 'Notes', icon: Icons.File },
+    { id: 'permissions', label: 'Permissions', icon: Icons.Settings }
   ];
+
+  const loadPermissions = async () => {
+    setLoadingPerms(true);
+    try {
+      const [userPerms, allPerms] = await Promise.all([
+        api(`/admin/users/${client.user.id}/permissions`),
+        api('/admin/permissions')
+      ]);
+      setPermissions(userPerms);
+      setAllPermissions(allPerms.permissions || []);
+    } catch (err) {
+      onToast({ message: 'Failed to load permissions', type: 'error' });
+    } finally {
+      setLoadingPerms(false);
+    }
+  };
+
+  const togglePermission = async (permissionId, currentlyGranted) => {
+    try {
+      if (currentlyGranted) {
+        await api(`/admin/users/${client.user.id}/permissions/${permissionId}`, { method: 'DELETE' });
+        onToast({ message: 'Permission override removed', type: 'success' });
+      } else {
+        await api(`/admin/users/${client.user.id}/permissions`, {
+          method: 'POST',
+          body: JSON.stringify({ permission_id: permissionId, granted: true })
+        });
+        onToast({ message: 'Permission granted', type: 'success' });
+      }
+      loadPermissions();
+    } catch (err) {
+      onToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'permissions' && !permissions) {
+      loadPermissions();
+    }
+  }, [activeTab]);
 
   const resetPassword = async () => {
     if (!newPassword || newPassword.length < 8) {
@@ -619,6 +663,107 @@ function ClientDetailView({ client, onUpdate, onToast }) {
               ))
             ) : (
               <EmptyState icon={Icons.File} message="No notes yet" />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'permissions' && (
+          <div className="space-y-4">
+            {loadingPerms ? (
+              <div className="flex justify-center py-8"><Spinner /></div>
+            ) : permissions ? (
+              <>
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Role:</strong> {permissions.role} - This user inherits {permissions.role_permissions?.length || 0} permissions from their role.
+                    You can grant additional permissions or override role permissions below.
+                  </p>
+                </div>
+
+                {permissions.user_permissions && permissions.user_permissions.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-gray-900 mb-3">User-Specific Permissions</h3>
+                    <div className="space-y-2">
+                      {permissions.user_permissions.map((perm) => (
+                        <div key={perm.id} className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900">{perm.name}</p>
+                            <p className="text-sm text-gray-600">{perm.description}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              perm.granted ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {perm.granted ? 'Granted' : 'Denied'}
+                            </span>
+                            <button
+                              onClick={() => togglePermission(perm.id, true)}
+                              className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                            >
+                              Remove Override
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-3">All Available Permissions</h3>
+                  <div className="text-sm text-gray-600 mb-3">
+                    Click a permission to grant it to this user (overrides role default)
+                  </div>
+                  {Object.entries(
+                    allPermissions.reduce((acc, perm) => {
+                      if (!acc[perm.category]) acc[perm.category] = [];
+                      acc[perm.category].push(perm);
+                      return acc;
+                    }, {})
+                  ).map(([category, perms]) => (
+                    <div key={category} className="mb-4">
+                      <h4 className="text-sm font-semibold text-gray-700 uppercase mb-2">{category}</h4>
+                      <div className="space-y-1">
+                        {perms.map((perm) => {
+                          const hasFromRole = permissions.role_permissions.some(rp => rp.id === perm.id);
+                          const userOverride = permissions.user_permissions.find(up => up.id === perm.id);
+                          const isActive = userOverride ? userOverride.granted : hasFromRole;
+
+                          return (
+                            <div key={perm.id} className={`flex items-center justify-between p-2 rounded border ${
+                              isActive ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                            }`}>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">{perm.name}</p>
+                                <p className="text-xs text-gray-600">{perm.description}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {hasFromRole && !userOverride && (
+                                  <span className="text-xs text-gray-500 italic">from role</span>
+                                )}
+                                {!userOverride && (
+                                  <button
+                                    onClick={() => togglePermission(perm.id, false)}
+                                    className={`px-2 py-1 text-xs rounded ${
+                                      isActive
+                                        ? 'border border-gray-300 bg-white hover:bg-gray-50'
+                                        : 'bg-green-600 text-white hover:bg-green-700'
+                                    }`}
+                                  >
+                                    {isActive ? 'Revoke' : 'Grant'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyState icon={Icons.Settings} message="Failed to load permissions" />
             )}
           </div>
         )}

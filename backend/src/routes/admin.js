@@ -445,4 +445,115 @@ router.put('/email-templates/:id', requirePermission('settings.edit'), async (re
   }
 });
 
+// ============================================
+// PERMISSION MANAGEMENT
+// ============================================
+
+// Get all available permissions
+router.get('/permissions', requirePermission('settings.edit'), async (req, res, next) => {
+  try {
+    const result = await db.query(`
+      SELECT id, name, description, category
+      FROM permissions
+      ORDER BY category, name
+    `);
+
+    res.json({ permissions: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get user's permissions (both from role and individual grants)
+router.get('/users/:userId/permissions', requirePermission('settings.edit'), async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    // Get user's role
+    const userResult = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const userRole = userResult.rows[0].role;
+
+    // Get role-based permissions
+    const rolePerms = await db.query(`
+      SELECT p.id, p.name, p.description, p.category, 'role' as source
+      FROM role_permissions rp
+      JOIN permissions p ON rp.permission_id = p.id
+      WHERE rp.role = $1
+      ORDER BY p.category, p.name
+    `, [userRole]);
+
+    // Get user-specific permission overrides
+    const userPerms = await db.query(`
+      SELECT p.id, p.name, p.description, p.category, up.granted,
+             CASE WHEN up.granted THEN 'granted' ELSE 'denied' END as source
+      FROM user_permissions up
+      JOIN permissions p ON up.permission_id = p.id
+      WHERE up.user_id = $1
+      ORDER BY p.category, p.name
+    `, [userId]);
+
+    res.json({
+      role: userRole,
+      role_permissions: rolePerms.rows,
+      user_permissions: userPerms.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Grant permission to a user
+router.post('/users/:userId/permissions', requirePermission('settings.edit'), async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { permission_id, granted = true } = req.body;
+
+    if (!permission_id) {
+      return res.status(400).json({ error: 'permission_id is required' });
+    }
+
+    // Check if permission exists
+    const permCheck = await db.query('SELECT id FROM permissions WHERE id = $1', [permission_id]);
+    if (permCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Permission not found' });
+    }
+
+    // Grant or deny permission
+    await db.query(`
+      INSERT INTO user_permissions (user_id, permission_id, granted)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, permission_id)
+      DO UPDATE SET granted = $3
+    `, [userId, permission_id, granted]);
+
+    res.json({
+      message: granted ? 'Permission granted' : 'Permission denied',
+      user_id: userId,
+      permission_id,
+      granted
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Revoke user-specific permission (revert to role default)
+router.delete('/users/:userId/permissions/:permissionId', requirePermission('settings.edit'), async (req, res, next) => {
+  try {
+    const { userId, permissionId } = req.params;
+
+    await db.query(
+      'DELETE FROM user_permissions WHERE user_id = $1 AND permission_id = $2',
+      [userId, permissionId]
+    );
+
+    res.json({ message: 'Permission override removed (reverted to role default)' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
