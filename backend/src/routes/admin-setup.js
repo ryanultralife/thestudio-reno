@@ -23,6 +23,7 @@ router.post('/populate-admin', authenticate, requireRole('admin'), async (req, r
 
     const coopMigrationPath = path.join(__dirname, '../../database/add-coop-classes.sql');
     const seriesMigrationPath = path.join(__dirname, '../../database/add-class-series.sql');
+    const paymentMigrationPath = path.join(__dirname, '../../database/add-teacher-payment-info.sql');
 
     try {
       const coopMigrationSql = fs.readFileSync(coopMigrationPath, 'utf8');
@@ -38,6 +39,14 @@ router.post('/populate-admin', authenticate, requireRole('admin'), async (req, r
       console.log('  ✓ Class series migration applied');
     } catch (err) {
       console.log('  ℹ️  Series migration already applied or error:', err.message);
+    }
+
+    try {
+      const paymentMigrationSql = fs.readFileSync(paymentMigrationPath, 'utf8');
+      await client.query(paymentMigrationSql);
+      console.log('  ✓ Teacher payment info migration applied');
+    } catch (err) {
+      console.log('  ℹ️  Payment info migration already applied or error:', err.message);
     }
 
     // Read the demo data SQL file
@@ -150,6 +159,7 @@ router.post('/populate', async (req, res, next) => {
 
     const coopMigrationPath = path.join(__dirname, '../../database/add-coop-classes.sql');
     const seriesMigrationPath = path.join(__dirname, '../../database/add-class-series.sql');
+    const paymentMigrationPath = path.join(__dirname, '../../database/add-teacher-payment-info.sql');
 
     try {
       const coopMigrationSql = fs.readFileSync(coopMigrationPath, 'utf8');
@@ -165,6 +175,14 @@ router.post('/populate', async (req, res, next) => {
       console.log('  ✓ Class series migration applied');
     } catch (err) {
       console.log('  ℹ️  Series migration already applied or error:', err.message);
+    }
+
+    try {
+      const paymentMigrationSql = fs.readFileSync(paymentMigrationPath, 'utf8');
+      await client.query(paymentMigrationSql);
+      console.log('  ✓ Teacher payment info migration applied');
+    } catch (err) {
+      console.log('  ℹ️  Payment info migration already applied or error:', err.message);
     }
 
     // Read the demo data SQL file
@@ -222,6 +240,53 @@ router.post('/populate', async (req, res, next) => {
     });
   } finally {
     client.release();
+  }
+});
+
+// Check admin user status
+router.get('/admin-check', async (req, res, next) => {
+  try {
+    const admins = await db.query(`
+      SELECT id, email, role, is_active
+      FROM users
+      WHERE role = 'admin' OR email LIKE '%admin%'
+      ORDER BY created_at
+    `);
+
+    res.json({
+      admin_users: admins.rows,
+      note: 'Login credentials should be one of these emails with password: admin123'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Fix admin role (public endpoint for setup)
+router.post('/fix-admin', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+
+    // Update user to admin role
+    const result = await db.query(
+      `UPDATE users SET role = 'admin', is_active = true WHERE email = $1 RETURNING id, email, role`,
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      message: 'User updated to admin role',
+      user: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
   }
 });
 

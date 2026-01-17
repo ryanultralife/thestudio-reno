@@ -415,4 +415,74 @@ router.post('/class/:classId/checkin/:bookingId', requireRole('teacher', 'manage
   }
 });
 
+// ============================================
+// UPDATE TEACHER PAYMENT INFO
+// ============================================
+
+router.put('/me/payment-info', requireRole('teacher', 'manager', 'owner', 'admin'), async (req, res, next) => {
+  try {
+    const {
+      venmo_handle,
+      zelle_email,
+      zelle_phone,
+      paypal_email,
+      cashapp_handle,
+      payment_notes
+    } = req.body;
+
+    // Get teacher ID
+    const teacherResult = await db.query('SELECT id FROM teachers WHERE user_id = $1', [req.user.id]);
+    if (teacherResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Teacher profile not found' });
+    }
+    const teacherId = teacherResult.rows[0].id;
+
+    // Build update query
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    const fields = {
+      venmo_handle,
+      zelle_email,
+      zelle_phone,
+      paypal_email,
+      cashapp_handle,
+      payment_notes
+    };
+
+    for (const [field, value] of Object.entries(fields)) {
+      if (value !== undefined) {
+        updates.push(`${field} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(teacherId);
+    const result = await db.query(
+      `UPDATE teachers SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+
+    res.json({
+      message: 'Payment information updated',
+      payment_info: {
+        venmo_handle: result.rows[0].venmo_handle,
+        zelle_email: result.rows[0].zelle_email,
+        zelle_phone: result.rows[0].zelle_phone,
+        paypal_email: result.rows[0].paypal_email,
+        cashapp_handle: result.rows[0].cashapp_handle,
+        payment_notes: result.rows[0].payment_notes
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
