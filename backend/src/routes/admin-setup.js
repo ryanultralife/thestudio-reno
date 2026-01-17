@@ -18,8 +18,30 @@ router.post('/populate-admin', authenticate, requireRole('admin'), async (req, r
   try {
     console.log('📝 Admin requested demo data population...');
 
+    // Run migrations first (if not already run)
+    console.log('🔧 Running migrations...');
+
+    const coopMigrationPath = path.join(__dirname, '../../database/add-coop-classes.sql');
+    const seriesMigrationPath = path.join(__dirname, '../../database/add-class-series.sql');
+
+    try {
+      const coopMigrationSql = fs.readFileSync(coopMigrationPath, 'utf8');
+      await client.query(coopMigrationSql);
+      console.log('  ✓ Co-op classes migration applied');
+    } catch (err) {
+      console.log('  ℹ️  Co-op migration already applied or error:', err.message);
+    }
+
+    try {
+      const seriesMigrationSql = fs.readFileSync(seriesMigrationPath, 'utf8');
+      await client.query(seriesMigrationSql);
+      console.log('  ✓ Class series migration applied');
+    } catch (err) {
+      console.log('  ℹ️  Series migration already applied or error:', err.message);
+    }
+
     // Read the demo data SQL file
-    const sqlPath = path.join(__dirname, '../database/seed-demo-data.sql');
+    const sqlPath = path.join(__dirname, '../../database/seed-demo-data.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
     console.log('🚀 Executing demo data population...');
@@ -122,6 +144,28 @@ router.post('/populate', async (req, res, next) => {
     }
 
     console.log('📝 Public demo data population requested (first-time setup)...');
+
+    // Run migrations first (if not already run)
+    console.log('🔧 Running migrations...');
+
+    const coopMigrationPath = path.join(__dirname, '../../database/add-coop-classes.sql');
+    const seriesMigrationPath = path.join(__dirname, '../../database/add-class-series.sql');
+
+    try {
+      const coopMigrationSql = fs.readFileSync(coopMigrationPath, 'utf8');
+      await client.query(coopMigrationSql);
+      console.log('  ✓ Co-op classes migration applied');
+    } catch (err) {
+      console.log('  ℹ️  Co-op migration already applied or error:', err.message);
+    }
+
+    try {
+      const seriesMigrationSql = fs.readFileSync(seriesMigrationPath, 'utf8');
+      await client.query(seriesMigrationSql);
+      console.log('  ✓ Class series migration applied');
+    } catch (err) {
+      console.log('  ℹ️  Series migration already applied or error:', err.message);
+    }
 
     // Read the demo data SQL file
     const sqlPath = path.join(__dirname, '../../database/seed-demo-data.sql');
