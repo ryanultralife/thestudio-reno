@@ -2,6 +2,29 @@
 
 A complete yoga studio management platform replacing Mindbody + WordPress.
 
+**Production Deployment**: https://thestudio-reno-production.up.railway.app
+
+---
+
+## 📚 Documentation
+
+**Comprehensive documentation suite (145KB, AI-optimized)**:
+
+- **[📖 Documentation Index](./docs/README.md)** - Start here
+- **[🤖 AI Development Guide](./docs/AI-DEVELOPMENT-GUIDE.md)** - For AI assistants & developers
+- **[🗄️ Database Schema](./docs/DATABASE-SCHEMA.md)** - All 50+ tables documented
+- **[🔌 API Reference](./docs/API-REFERENCE.md)** - All 60+ endpoints documented
+- **[🏗️ Architecture](./docs/ARCHITECTURE.md)** - System design & decisions
+- **[🚀 Q2 SaaS Roadmap](./docs/Q2-SAAS-ROADMAP.md)** - Multi-tenant expansion plan
+
+**Quick Links**:
+- New to the project? → [Architecture Overview](./docs/ARCHITECTURE.md)
+- Adding a feature? → [AI Development Guide](./docs/AI-DEVELOPMENT-GUIDE.md)
+- Need an API endpoint? → [API Reference](./docs/API-REFERENCE.md)
+- Writing queries? → [Database Schema](./docs/DATABASE-SCHEMA.md)
+
+---
+
 ## 🚀 Quick Start (5 minutes)
 
 ### Prerequisites
@@ -41,9 +64,9 @@ npm run db:reset
 npm run dev
 ```
 
-**That's it!** 
+**That's it!**
 - Public site: http://localhost:5173
-- Staff portal: http://localhost:5173/admin
+- Staff portal: http://localhost:5173/staff
 
 ### Test Accounts
 | Role | Email | Password |
@@ -136,7 +159,7 @@ pm2 start backend/src/index.js --name thestudio
 
 ## 📱 Features
 
-### Staff Portal (`/admin`)
+### Staff Portal (`/staff`)
 - **Dashboard** - Today's stats, schedule, at-risk members
 - **Check-In** - One-tap check-in with roster view
 - **Schedule** - Week/day views, class management
@@ -144,7 +167,9 @@ pm2 start backend/src/index.js --name thestudio
 - **Sell (POS)** - Memberships, drop-ins, retail
 - **Sub Requests** - Teacher substitution workflow
 - **Reports** - Attendance, revenue, popularity
+- **Website (CMS)** - Content editor, theme customization
 - **Settings** - Class types, memberships, teachers
+- **My Account** - Profile management, password change
 
 ### Public Website (`/`)
 - Schedule with real-time availability
@@ -249,23 +274,35 @@ Contact us for help with data migration.
 
 ```
 thestudio-reno/
+├── docs/                    # 📚 Comprehensive documentation (145KB)
+│   ├── README.md           # Documentation index
+│   ├── AI-DEVELOPMENT-GUIDE.md  # Primary guide for AI-assisted coding
+│   ├── DATABASE-SCHEMA.md  # All 50+ tables documented
+│   ├── API-REFERENCE.md    # All 60+ endpoints documented
+│   ├── ARCHITECTURE.md     # System design & decisions
+│   └── Q2-SAAS-ROADMAP.md  # Multi-tenant expansion plan
+│
 ├── backend/
 │   ├── database/
-│   │   ├── schema.sql      # Database structure
-│   │   └── seed.sql        # Test data
+│   │   ├── schema.sql      # Core database structure
+│   │   ├── seed.sql        # Test data
+│   │   └── *.sql           # 11 migration files
 │   ├── src/
-│   │   ├── routes/         # API endpoints
-│   │   ├── services/       # Business logic
-│   │   ├── middleware/     # Auth, RBAC
-│   │   └── templates/      # Email templates
+│   │   ├── routes/         # 19 API route modules
+│   │   ├── services/       # Business logic, campaigns, notifications
+│   │   ├── middleware/     # Auth, RBAC, permissions
+│   │   └── database/       # Connection pooling
 │   └── .env.example
+│
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx         # Staff portal
-│   │   └── PublicWebsite.jsx
+│   │   ├── App.jsx         # Staff portal (985 lines)
+│   │   ├── CMS.jsx         # Content management system
+│   │   └── PublicWebsite.jsx  # Public-facing site
 │   └── index.html
-├── package.json            # Root scripts
-└── README.md
+│
+├── package.json            # Root scripts (dev, build, deploy)
+└── README.md               # This file
 ```
 
 ---
