@@ -9,7 +9,8 @@ const db = require('../database/connection');
 const {
   authenticate,
   requirePermission,
-  optionalAuth
+  optionalAuth,
+  userHasPermission
 } = require('../middleware/auth');
 
 const router = express.Router();
@@ -560,7 +561,8 @@ router.post('/bookings/:id/cancel',
       const booking = bookingResult.rows[0];
 
       // Check if user owns booking or has manage permission
-      if (booking.user_id !== req.user.id && !req.user.permissions?.includes('room.manage')) {
+      const hasManagePermission = await userHasPermission(req.user.id, 'room.manage');
+      if (booking.user_id !== req.user.id && !hasManagePermission) {
         return res.status(403).json({ error: 'Not authorized to cancel this booking' });
       }
 

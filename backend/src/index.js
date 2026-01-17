@@ -11,6 +11,60 @@ const morgan = require('morgan');
 const app = express();
 
 // ============================================
+// RATE LIMITING (In-memory, simple implementation)
+// ============================================
+
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 100; // 100 requests per minute per IP
+const AUTH_RATE_LIMIT_MAX = 10; // 10 auth attempts per minute per IP
+
+// Clean up old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, data] of rateLimitStore.entries()) {
+    if (now - data.windowStart > RATE_LIMIT_WINDOW_MS * 2) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 60000);
+
+function rateLimit(maxRequests = RATE_LIMIT_MAX_REQUESTS) {
+  return (req, res, next) => {
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    const key = `${ip}:${req.path.startsWith('/api/auth') ? 'auth' : 'general'}`;
+    const now = Date.now();
+
+    let data = rateLimitStore.get(key);
+    if (!data || now - data.windowStart > RATE_LIMIT_WINDOW_MS) {
+      data = { windowStart: now, count: 0 };
+    }
+
+    data.count++;
+    rateLimitStore.set(key, data);
+
+    // Set rate limit headers
+    res.setHeader('X-RateLimit-Limit', maxRequests);
+    res.setHeader('X-RateLimit-Remaining', Math.max(0, maxRequests - data.count));
+    res.setHeader('X-RateLimit-Reset', Math.ceil((data.windowStart + RATE_LIMIT_WINDOW_MS) / 1000));
+
+    if (data.count > maxRequests) {
+      return res.status(429).json({
+        error: 'Too many requests, please try again later',
+        retryAfter: Math.ceil((data.windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000)
+      });
+    }
+
+    next();
+  };
+}
+
+// Apply general rate limiting to all requests
+app.use(rateLimit(RATE_LIMIT_MAX_REQUESTS));
+
+// Stricter rate limiting for auth endpoints (applied after routes are defined)
+
+// ============================================
 // MIDDLEWARE
 // ============================================
 
@@ -50,7 +104,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // API routes
-app.use('/api/auth', require('./routes/auth'));
+// Apply stricter rate limiting to auth endpoints to prevent brute force attacks
+app.use('/api/auth', rateLimit(AUTH_RATE_LIMIT_MAX), require('./routes/auth'));
 app.use('/api/classes', require('./routes/classes'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/memberships', require('./routes/memberships'));

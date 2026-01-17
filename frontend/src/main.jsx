@@ -1,7 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import PublicWebsite from './PublicWebsite.jsx'
+import UnifiedApp from './UnifiedApp'
 import DisplayBoard from './DisplayBoard.jsx'
 import './index.css'
 
@@ -9,13 +8,25 @@ import './index.css'
 const path = window.location.pathname
 
 // Determine which app to show
-let AppComponent = PublicWebsite
+let AppComponent = UnifiedApp
 
-if (path.startsWith('/admin') || path.startsWith('/staff')) {
-  AppComponent = App
-} else if (path.startsWith('/display') || path.startsWith('/tv') || path.startsWith('/signage')) {
+// Display board / signage screens use a separate dedicated component
+if (path.startsWith('/display') || path.startsWith('/tv') || path.startsWith('/signage')) {
   AppComponent = DisplayBoard
 }
+
+// Handle SPA navigation
+window.addEventListener('popstate', () => {
+  // Re-render on navigation
+  const root = document.getElementById('root')
+  if (root && root._reactRootContainer) {
+    root._reactRootContainer.render(
+      <React.StrictMode>
+        <UnifiedApp />
+      </React.StrictMode>
+    )
+  }
+})
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

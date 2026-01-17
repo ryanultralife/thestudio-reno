@@ -3,10 +3,22 @@
 // ============================================
 
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { body, query, validationResult } = require('express-validator');
 const db = require('../database/connection');
 const { authenticate, requirePermission } = require('../middleware/auth');
+
+// Generate cryptographically secure random password
+function generateSecurePassword(length = 12) {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+  const randomBytes = crypto.randomBytes(length);
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += charset[randomBytes[i] % charset.length];
+  }
+  return password;
+}
 
 const router = express.Router();
 
@@ -202,8 +214,8 @@ router.post('/', requirePermission('user.create'), [
       return res.status(409).json({ error: 'Email already exists' });
     }
 
-    // Generate temporary password
-    const tempPassword = Math.random().toString(36).slice(-8);
+    // Generate secure temporary password
+    const tempPassword = generateSecurePassword(12);
     const password_hash = await bcrypt.hash(tempPassword, 12);
 
     const result = await db.query(`

@@ -3,21 +3,36 @@
 // ============================================
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../database/connection');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// SECURITY: Validate JWT_SECRET in production
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '7d';
+
+// Fail fast if JWT_SECRET is not set in production
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: JWT_SECRET environment variable must be set in production');
+    process.exit(1);
+  } else {
+    console.warn('WARNING: JWT_SECRET not set. Using random secret for development (tokens will not persist across restarts)');
+  }
+}
+
+// Use environment variable or generate random secret for development only
+const EFFECTIVE_JWT_SECRET = JWT_SECRET || crypto.randomBytes(32).toString('hex');
 
 // ============================================
 // JWT TOKEN MANAGEMENT
 // ============================================
 
 function generateToken(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign({ userId }, EFFECTIVE_JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return jwt.verify(token, EFFECTIVE_JWT_SECRET);
 }
 
 // ============================================
@@ -308,6 +323,7 @@ module.exports = {
   generateToken,
   verifyToken,
   authenticate,
+  authenticateToken: authenticate, // Alias for backwards compatibility
   optionalAuth,
 
   // Permission checks

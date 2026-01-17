@@ -392,34 +392,76 @@ router.get('/new-members', requirePermission('report.basic'), async (req, res, n
 });
 
 // ============================================
-// CUSTOM QUERY (Admin only)
+// CUSTOM QUERY (Admin only) - DISABLED FOR SECURITY
+// Use predefined report queries instead
 // ============================================
+
+// Predefined safe report queries
+const ALLOWED_REPORTS = {
+  'active_members': `
+    SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.created_at,
+           m.name as membership_name, um.start_date, um.end_date
+    FROM users u
+    LEFT JOIN user_memberships um ON um.user_id = u.id AND um.status = 'active'
+    LEFT JOIN membership_types m ON m.id = um.membership_type_id
+    WHERE u.is_active = true
+    ORDER BY u.last_name, u.first_name
+  `,
+  'revenue_by_month': `
+    SELECT DATE_TRUNC('month', created_at) as month,
+           SUM(amount) as total_revenue,
+           COUNT(*) as transaction_count
+    FROM transactions
+    WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '12 months'
+    GROUP BY DATE_TRUNC('month', created_at)
+    ORDER BY month DESC
+  `,
+  'class_popularity': `
+    SELECT ct.name as class_type, COUNT(b.id) as bookings,
+           COUNT(DISTINCT c.id) as classes_offered
+    FROM class_types ct
+    LEFT JOIN classes c ON c.class_type_id = ct.id AND c.date >= NOW() - INTERVAL '30 days'
+    LEFT JOIN bookings b ON b.class_id = c.id AND b.status IN ('confirmed', 'attended')
+    GROUP BY ct.id, ct.name
+    ORDER BY bookings DESC
+  `,
+  'teacher_stats': `
+    SELECT t.id, u.first_name, u.last_name,
+           COUNT(DISTINCT c.id) as classes_taught,
+           COUNT(b.id) as total_students
+    FROM teachers t
+    JOIN users u ON u.id = t.user_id
+    LEFT JOIN classes c ON c.teacher_id = t.id AND c.date >= NOW() - INTERVAL '30 days'
+    LEFT JOIN bookings b ON b.class_id = c.id AND b.status = 'attended'
+    WHERE t.is_active = true
+    GROUP BY t.id, u.first_name, u.last_name
+    ORDER BY classes_taught DESC
+  `
+};
 
 router.post('/query', requirePermission('report.custom'), async (req, res, next) => {
   try {
-    const { query } = req.body;
+    const { report_name } = req.body;
 
-    // Basic safety check - no writes
-    const lowerQuery = query.toLowerCase().trim();
-    if (!lowerQuery.startsWith('select')) {
-      return res.status(400).json({ error: 'Only SELECT queries allowed' });
+    // SECURITY: Only allow predefined report queries
+    if (!report_name || !ALLOWED_REPORTS[report_name]) {
+      return res.status(400).json({
+        error: 'Invalid report. Use one of the predefined reports.',
+        available_reports: Object.keys(ALLOWED_REPORTS)
+      });
     }
 
-    if (lowerQuery.includes('drop') || lowerQuery.includes('delete') || 
-        lowerQuery.includes('update') || lowerQuery.includes('insert') ||
-        lowerQuery.includes('truncate') || lowerQuery.includes('alter')) {
-      return res.status(400).json({ error: 'Query contains forbidden keywords' });
-    }
+    const result = await db.query(ALLOWED_REPORTS[report_name]);
 
-    const result = await db.query(query);
-    
     res.json({
+      report: report_name,
       rows: result.rows,
       rowCount: result.rowCount,
       fields: result.fields?.map(f => f.name),
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Report query error:', error);
+    res.status(500).json({ error: 'Report generation failed' });
   }
 });
 
