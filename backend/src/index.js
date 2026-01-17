@@ -2,11 +2,16 @@
 // THE STUDIO RENO - API SERVER
 // ============================================
 
+console.log('🚀 Server starting...');
+console.log('📍 Loading environment variables...');
 require('dotenv').config();
 
 // ============================================
 // CRITICAL ENVIRONMENT VARIABLES CHECK
 // ============================================
+console.log('✅ Environment loaded');
+console.log('🔍 Checking required environment variables...');
+
 const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
 const missingVars = requiredEnvVars.filter(v => !process.env[v]);
 
@@ -16,6 +21,8 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
+console.log('✅ Required environment variables present');
+
 // Warn about payment keys (not critical for non-payment features)
 if (!process.env.STRIPE_SECRET_KEY) {
   console.warn('⚠️  WARNING: STRIPE_SECRET_KEY not set - payment features will not work');
@@ -24,11 +31,13 @@ if (!process.env.STRIPE_WEBHOOK_SECRET) {
   console.warn('⚠️  WARNING: STRIPE_WEBHOOK_SECRET not set - webhook verification will fail');
 }
 
+console.log('📦 Loading Express and middleware...');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
+console.log('✅ Middleware loaded');
 const app = express();
 
 // ============================================
@@ -74,26 +83,42 @@ app.get('/api/health', (req, res) => {
 app.use('/api/setup', require('./routes/setup'));
 
 // API routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/classes', require('./routes/classes'));
-app.use('/api/bookings', require('./routes/bookings'));
-app.use('/api/memberships', require('./routes/memberships'));
-app.use('/api/transactions', require('./routes/transactions'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/teachers', require('./routes/teachers'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/teacher-insights', require('./routes/teacher-insights'));
-app.use('/api/admin', require('./routes/admin'));
-app.use('/api/notifications', require('./routes/notifications'));
-app.use('/api/social', require('./routes/social'));
-app.use('/api/webhooks', require('./routes/webhooks'));
-app.use('/api/retail', require('./routes/retail'));
-app.use('/api/cms', require('./routes/cms'));
-app.use('/api/rentals', require('./routes/rentals'));
-app.use('/api/campaigns', require('./routes/campaigns'));
-app.use('/api/migration', require('./routes/migration'));
-app.use('/api/theme', require('./routes/theme'));
-app.use('/api/series', require('./routes/series'));
+console.log('📌 Loading API routes...');
+try {
+  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/classes', require('./routes/classes'));
+  app.use('/api/bookings', require('./routes/bookings'));
+  app.use('/api/memberships', require('./routes/memberships'));
+  app.use('/api/transactions', require('./routes/transactions'));
+  app.use('/api/users', require('./routes/users'));
+  app.use('/api/teachers', require('./routes/teachers'));
+  app.use('/api/reports', require('./routes/reports'));
+  console.log('  ✓ Loaded core routes');
+
+  app.use('/api/teacher-insights', require('./routes/teacher-insights'));
+  console.log('  ✓ Loaded teacher-insights routes');
+
+  app.use('/api/admin', require('./routes/admin'));
+  app.use('/api/notifications', require('./routes/notifications'));
+  app.use('/api/social', require('./routes/social'));
+  app.use('/api/webhooks', require('./routes/webhooks'));
+  app.use('/api/retail', require('./routes/retail'));
+  app.use('/api/cms', require('./routes/cms'));
+  app.use('/api/rentals', require('./routes/rentals'));
+  app.use('/api/campaigns', require('./routes/campaigns'));
+  app.use('/api/migration', require('./routes/migration'));
+  app.use('/api/theme', require('./routes/theme'));
+  console.log('  ✓ Loaded extended routes');
+
+  app.use('/api/series', require('./routes/series'));
+  console.log('  ✓ Loaded series routes');
+
+  console.log('✅ All API routes loaded successfully');
+} catch (error) {
+  console.error('❌ FATAL: Error loading routes:', error.message);
+  console.error(error.stack);
+  process.exit(1);
+}
 
 // ============================================
 // SERVE FRONTEND IN PRODUCTION
@@ -152,8 +177,11 @@ app.use((err, req, res, next) => {
 // SERVER START
 // ============================================
 
+console.log('🚀 Starting HTTP server...');
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
+
+console.log(`📡 Binding to ${HOST}:${PORT}`);
 
 app.listen(PORT, HOST, () => {
   console.log(`
@@ -168,9 +196,12 @@ app.listen(PORT, HOST, () => {
 
   // Start scheduled jobs
   if (process.env.NODE_ENV !== 'test') {
+    console.log('⏰ Starting scheduled jobs...');
     const { startScheduler } = require('./services/scheduler');
     startScheduler();
   }
+
+  console.log('✅ Server is ready and accepting connections');
 });
 
 module.exports = app;
