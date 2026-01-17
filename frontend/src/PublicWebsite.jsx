@@ -1,6 +1,4 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import StaffPortal from './App.jsx';
-import CMS from './CMS.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const AuthContext = createContext(null);
@@ -302,10 +300,9 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
 
 function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [staffDropdownOpen, setStaffDropdownOpen] = useState(false);
 
   const isStaff = user && ['front_desk', 'teacher', 'manager', 'owner', 'admin'].includes(user.role);
-  const staffPages = currentPage && ['staff-dashboard', 'staff-checkin', 'staff-schedule', 'staff-clients', 'staff-reports', 'staff-cms', 'staff-settings'].includes(currentPage);
+  const isAdmin = user && ['admin', 'owner', 'manager'].includes(user.role);
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-40">
@@ -318,42 +315,29 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
             </button>
           </div>
 
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
+            {/* Staff/Admin links - shown first for logged-in staff */}
+            {isStaff && (
+              <button onClick={() => setCurrentPage('dashboard')} className={`${currentPage === 'dashboard' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Dashboard</button>
+            )}
+
+            {/* Public links */}
             <button onClick={() => setCurrentPage('schedule')} className={`${currentPage === 'schedule' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Schedule</button>
-            <button onClick={() => setCurrentPage('classes')} className={`${currentPage === 'classes' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Classes</button>
             <button onClick={() => setCurrentPage('teachers')} className={`${currentPage === 'teachers' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Teachers</button>
+
+            {/* Admin-only links */}
+            {isAdmin && (
+              <>
+                <button onClick={() => setCurrentPage('clients')} className={`${currentPage === 'clients' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Clients</button>
+                <button onClick={() => setCurrentPage('reports')} className={`${currentPage === 'reports' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Reports</button>
+              </>
+            )}
+
             <button onClick={() => setCurrentPage('pricing')} className={`${currentPage === 'pricing' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Pricing</button>
-            <button onClick={() => setCurrentPage('for-teachers')} className={`${currentPage === 'for-teachers' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>For Teachers</button>
             <button onClick={() => setCurrentPage('shop')} className={`${currentPage === 'shop' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Shop</button>
 
             {user ? (
-              <div className="flex items-center gap-4">
-                {isStaff && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setStaffDropdownOpen(!staffDropdownOpen)}
-                      className={`flex items-center gap-1 ${staffPages ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}
-                    >
-                      <span>{user.role === 'admin' || user.role === 'owner' ? 'Admin' : 'Portal'}</span>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    {staffDropdownOpen && (
-                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-2 z-50">
-                        <button onClick={() => { setCurrentPage('staff-dashboard'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Dashboard</button>
-                        {(user.role === 'admin' || user.role === 'owner' || user.role === 'manager') && (
-                          <button onClick={() => { setCurrentPage('staff-clients'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Clients</button>
-                        )}
-                        <button onClick={() => { setCurrentPage('staff-reports'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Reports</button>
-                        {(user.role === 'admin' || user.role === 'owner') && (
-                          <>
-                            <button onClick={() => { setCurrentPage('staff-cms'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Website CMS</button>
-                            <button onClick={() => { setCurrentPage('staff-settings'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div className="flex items-center gap-4 border-l pl-4 ml-2">
                 <button onClick={() => setCurrentPage('account')} className={`${currentPage === 'account' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>My Account</button>
                 <button onClick={onLogout} className="text-gray-400 hover:text-gray-600">Logout</button>
               </div>
@@ -372,36 +356,25 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
 
       {mobileOpen && (
         <div className="md:hidden bg-white border-t">
-          <div className="px-4 py-3 space-y-3">
+          <div className="px-4 py-3 space-y-2">
+            {isStaff && (
+              <button onClick={() => { setCurrentPage('dashboard'); setMobileOpen(false); }} className="block w-full text-left text-gray-600 font-medium">Dashboard</button>
+            )}
             <button onClick={() => { setCurrentPage('schedule'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Schedule</button>
-            <button onClick={() => { setCurrentPage('classes'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Classes</button>
             <button onClick={() => { setCurrentPage('teachers'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Teachers</button>
+            {isAdmin && (
+              <>
+                <button onClick={() => { setCurrentPage('clients'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Clients</button>
+                <button onClick={() => { setCurrentPage('reports'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Reports</button>
+              </>
+            )}
             <button onClick={() => { setCurrentPage('pricing'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Pricing</button>
-            <button onClick={() => { setCurrentPage('for-teachers'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">For Teachers</button>
             <button onClick={() => { setCurrentPage('shop'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Shop</button>
             {user ? (
-              <>
-                {isStaff && (
-                  <>
-                    <div className="pt-2 pb-2 border-t">
-                      <p className="text-xs text-gray-400 px-2 mb-2">{user.role === 'admin' || user.role === 'owner' ? 'ADMIN' : 'PORTAL'}</p>
-                      <button onClick={() => { setCurrentPage('staff-dashboard'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Dashboard</button>
-                      {(user.role === 'admin' || user.role === 'owner' || user.role === 'manager') && (
-                        <button onClick={() => { setCurrentPage('staff-clients'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Clients</button>
-                      )}
-                      <button onClick={() => { setCurrentPage('staff-reports'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Reports</button>
-                      {(user.role === 'admin' || user.role === 'owner') && (
-                        <>
-                          <button onClick={() => { setCurrentPage('staff-cms'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Website CMS</button>
-                          <button onClick={() => { setCurrentPage('staff-settings'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Settings</button>
-                        </>
-                      )}
-                    </div>
-                  </>
-                )}
+              <div className="pt-2 border-t space-y-2">
                 <button onClick={() => { setCurrentPage('account'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">My Account</button>
                 <button onClick={onLogout} className="block w-full text-left text-gray-400">Logout</button>
-              </>
+              </div>
             ) : (
               <button onClick={() => { onShowAuth('login'); setMobileOpen(false); }} className="block w-full bg-amber-600 text-white text-center py-2 rounded-lg">Sign In</button>
             )}
@@ -1871,6 +1844,134 @@ function AccountPage({ user, onLogout }) {
 }
 
 // ============================================
+// ADMIN PAGES (Integrated into public layout)
+// ============================================
+
+function DashboardPage() {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const data = await api('/reports/dashboard');
+        setStats(data);
+      } catch (err) {
+        console.error('Error loading dashboard:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadStats();
+  }, []);
+
+  if (loading) return <div className="max-w-7xl mx-auto px-4 py-12 flex justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600"></div></div>;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="text-sm text-gray-500 mb-2">Active Members</div>
+          <div className="text-3xl font-bold text-gray-900">{stats?.memberships?.active || 0}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="text-sm text-gray-500 mb-2">Today's Classes</div>
+          <div className="text-3xl font-bold text-gray-900">{stats?.today?.classes || 0}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="text-sm text-gray-500 mb-2">Checked In</div>
+          <div className="text-3xl font-bold text-gray-900">{stats?.today?.checked_in || 0}</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="text-sm text-gray-500 mb-2">New This Week</div>
+          <div className="text-3xl font-bold text-gray-900">{stats?.new_members_this_week || 0}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientsPage() {
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        const data = await api('/clients');
+        setClients(data);
+      } catch (err) {
+        console.error('Error loading clients:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadClients();
+  }, []);
+
+  if (loading) return <div className="max-w-7xl mx-auto px-4 py-12 flex justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600"></div></div>;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">Clients</h1>
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {clients.map((client) => (
+              <tr key={client.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client.first_name} {client.last_name}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.email}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.phone || '-'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span className={`px-2 py-1 rounded-full text-xs ${client.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {client.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ReportsPage() {
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">Reports</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Revenue</h2>
+          <p className="text-gray-500">Revenue reports coming soon...</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance</h2>
+          <p className="text-gray-500">Attendance reports coming soon...</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Memberships</h2>
+          <p className="text-gray-500">Membership reports coming soon...</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Classes</h2>
+          <p className="text-gray-500">Class reports coming soon...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // MAIN APP
 // ============================================
 
@@ -1926,16 +2027,21 @@ export default function PublicWebsite() {
   }
 
   const renderPage = () => {
-    // Check if this is a staff page
-    const isStaffPage = currentPage && currentPage.startsWith('staff-');
+    const isStaff = user && ['front_desk', 'teacher', 'manager', 'owner', 'admin'].includes(user.role);
 
-    // If staff page and user is staff, render staff portal
-    if (isStaffPage && user && ['front_desk', 'teacher', 'manager', 'owner', 'admin'].includes(user.role)) {
-      return <StaffPortal />;
+    // Redirect staff to dashboard when on home
+    if (currentPage === 'home' && isStaff) {
+      setCurrentPage('dashboard');
+      return <DashboardPage />;
     }
 
-    // Otherwise render public pages
     switch (currentPage) {
+      // Admin pages
+      case 'dashboard': return isStaff ? <DashboardPage /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
+      case 'clients': return <ClientsPage />;
+      case 'reports': return <ReportsPage />;
+
+      // Public pages
       case 'home': return <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
       case 'schedule': return <SchedulePage user={user} onShowAuth={handleShowAuth} onBookClass={handleBookClass} />;
       case 'classes': return <ClassesPage />;
@@ -1948,20 +2054,7 @@ export default function PublicWebsite() {
     }
   };
 
-  // Check if on staff page
-  const isStaffPage = currentPage && currentPage.startsWith('staff-');
-  const isStaff = user && ['front_desk', 'teacher', 'manager', 'owner', 'admin'].includes(user.role);
-
-  // If viewing staff portal, render it fullscreen without public navigation
-  if (isStaffPage && isStaff) {
-    return (
-      <AuthContext.Provider value={{ user }}>
-        <StaffPortal />
-      </AuthContext.Provider>
-    );
-  }
-
-  // Otherwise render public website with navigation and footer
+  // Render unified website (public + admin integrated)
   return (
     <AuthContext.Provider value={{ user }}>
       <div className="min-h-screen flex flex-col">
