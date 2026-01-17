@@ -140,6 +140,15 @@ function Sidebar({ user, currentPage, setCurrentPage, onLogout }) {
         ))}
       </nav>
       <div className="p-4 border-t border-gray-800">
+        <button
+          onClick={() => setCurrentPage('my-account')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg mb-2 transition ${
+            currentPage === 'my-account' ? 'bg-amber-600' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+          }`}
+        >
+          <Icons.User />
+          {!collapsed && <span>My Account</span>}
+        </button>
         <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
           <div className="w-8 h-8 bg-amber-600 rounded-full flex items-center justify-center text-sm font-bold">{user.first_name?.[0]}{user.last_name?.[0]}</div>
           {!collapsed && <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{user.first_name} {user.last_name}</p><p className="text-xs text-gray-500 capitalize">{user.role.replace('_', ' ')}</p></div>}
@@ -793,6 +802,150 @@ function SettingsPage() {
   );
 }
 
+function MyAccountPage() {
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const { user } = useContext(AuthContext);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
+    setSuccess('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (formData.newPassword !== formData.confirmPassword) {
+      setError('New passwords do not match');
+      return;
+    }
+
+    if (formData.newPassword.length < 8) {
+      setError('New password must be at least 8 characters');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: formData.currentPassword,
+          new_password: formData.newPassword
+        })
+      });
+      setSuccess('Password changed successfully!');
+      setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      setError(err.message || 'Failed to change password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">My Account</h1>
+
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile Information</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <p className="text-gray-900">{user?.first_name} {user?.last_name}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <p className="text-gray-900">{user?.email}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <p className="text-gray-900 capitalize">{user?.role?.replace('_', ' ')}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
+
+        {success && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm">
+            {success}
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Current Password
+            </label>
+            <input
+              type="password"
+              name="currentPassword"
+              value={formData.currentPassword}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              New Password
+            </label>
+            <input
+              type="password"
+              name="newPassword"
+              value={formData.newPassword}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+            <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+          >
+            {loading ? 'Changing Password...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -824,6 +977,7 @@ export default function App() {
       case 'reports': return <ReportsPage />;
       case 'cms': return <CMS token={token} />;
       case 'settings': return <SettingsPage />;
+      case 'my-account': return <MyAccountPage />;
       default: return <DashboardPage />;
     }
   };
