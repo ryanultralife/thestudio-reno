@@ -1,4 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
+import StaffPortal from './App.jsx';
+import CMS from './CMS.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const AuthContext = createContext(null);
@@ -61,6 +63,7 @@ function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
           body: JSON.stringify({ email: form.email, password: form.password }),
         });
         localStorage.setItem('user_token', data.token);
+        localStorage.setItem('staff_token', data.token); // Sync for staff portal
         onLogin(data.user);
         onClose();
       } else {
@@ -69,6 +72,7 @@ function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
           body: JSON.stringify(form),
         });
         localStorage.setItem('user_token', data.token);
+        localStorage.setItem('staff_token', data.token); // Sync for staff portal
         onLogin(data.user);
         onClose();
       }
@@ -298,6 +302,10 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
 
 function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [staffDropdownOpen, setStaffDropdownOpen] = useState(false);
+
+  const isStaff = user && ['front_desk', 'teacher', 'manager', 'owner', 'admin'].includes(user.role);
+  const staffPages = currentPage && ['staff-dashboard', 'staff-checkin', 'staff-schedule', 'staff-clients', 'staff-reports', 'staff-cms', 'staff-settings'].includes(currentPage);
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-40">
@@ -309,7 +317,7 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
               <span className="text-2xl font-light text-gray-700 ml-1">Reno</span>
             </button>
           </div>
-          
+
           <div className="hidden md:flex items-center space-x-8">
             <button onClick={() => setCurrentPage('schedule')} className={`${currentPage === 'schedule' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Schedule</button>
             <button onClick={() => setCurrentPage('classes')} className={`${currentPage === 'classes' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Classes</button>
@@ -317,9 +325,35 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
             <button onClick={() => setCurrentPage('pricing')} className={`${currentPage === 'pricing' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Pricing</button>
             <button onClick={() => setCurrentPage('for-teachers')} className={`${currentPage === 'for-teachers' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>For Teachers</button>
             <button onClick={() => setCurrentPage('shop')} className={`${currentPage === 'shop' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Shop</button>
-            
+
             {user ? (
               <div className="flex items-center gap-4">
+                {isStaff && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setStaffDropdownOpen(!staffDropdownOpen)}
+                      className={`flex items-center gap-1 ${staffPages ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}
+                    >
+                      <span>{user.role === 'admin' || user.role === 'owner' ? 'Admin' : 'Portal'}</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    {staffDropdownOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-2 z-50">
+                        <button onClick={() => { setCurrentPage('staff-dashboard'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Dashboard</button>
+                        {(user.role === 'admin' || user.role === 'owner' || user.role === 'manager') && (
+                          <button onClick={() => { setCurrentPage('staff-clients'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Clients</button>
+                        )}
+                        <button onClick={() => { setCurrentPage('staff-reports'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Reports</button>
+                        {(user.role === 'admin' || user.role === 'owner') && (
+                          <>
+                            <button onClick={() => { setCurrentPage('staff-cms'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Website CMS</button>
+                            <button onClick={() => { setCurrentPage('staff-settings'); setStaffDropdownOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button onClick={() => setCurrentPage('account')} className={`${currentPage === 'account' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>My Account</button>
                 <button onClick={onLogout} className="text-gray-400 hover:text-gray-600">Logout</button>
               </div>
@@ -347,6 +381,24 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
             <button onClick={() => { setCurrentPage('shop'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Shop</button>
             {user ? (
               <>
+                {isStaff && (
+                  <>
+                    <div className="pt-2 pb-2 border-t">
+                      <p className="text-xs text-gray-400 px-2 mb-2">{user.role === 'admin' || user.role === 'owner' ? 'ADMIN' : 'PORTAL'}</p>
+                      <button onClick={() => { setCurrentPage('staff-dashboard'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Dashboard</button>
+                      {(user.role === 'admin' || user.role === 'owner' || user.role === 'manager') && (
+                        <button onClick={() => { setCurrentPage('staff-clients'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Clients</button>
+                      )}
+                      <button onClick={() => { setCurrentPage('staff-reports'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Reports</button>
+                      {(user.role === 'admin' || user.role === 'owner') && (
+                        <>
+                          <button onClick={() => { setCurrentPage('staff-cms'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Website CMS</button>
+                          <button onClick={() => { setCurrentPage('staff-settings'); setMobileOpen(false); }} className="block w-full text-left px-2 py-1 text-gray-600">Settings</button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
                 <button onClick={() => { setCurrentPage('account'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">My Account</button>
                 <button onClick={onLogout} className="block w-full text-left text-gray-400">Logout</button>
               </>
@@ -1839,8 +1891,11 @@ export default function PublicWebsite() {
     try {
       const data = await api('/auth/me');
       setUser(data.user);
+      // Sync staff_token for backwards compatibility with staff portal
+      localStorage.setItem('staff_token', token);
     } catch (err) {
       localStorage.removeItem('user_token');
+      localStorage.removeItem('staff_token');
     } finally {
       setLoading(false);
     }
@@ -1853,6 +1908,7 @@ export default function PublicWebsite() {
 
   const handleLogout = () => {
     localStorage.removeItem('user_token');
+    localStorage.removeItem('staff_token');
     setUser(null);
     setCurrentPage('home');
   };
@@ -1870,6 +1926,15 @@ export default function PublicWebsite() {
   }
 
   const renderPage = () => {
+    // Check if this is a staff page
+    const isStaffPage = currentPage && currentPage.startsWith('staff-');
+
+    // If staff page and user is staff, render staff portal
+    if (isStaffPage && user && ['front_desk', 'teacher', 'manager', 'owner', 'admin'].includes(user.role)) {
+      return <StaffPortal />;
+    }
+
+    // Otherwise render public pages
     switch (currentPage) {
       case 'home': return <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
       case 'schedule': return <SchedulePage user={user} onShowAuth={handleShowAuth} onBookClass={handleBookClass} />;
@@ -1883,6 +1948,20 @@ export default function PublicWebsite() {
     }
   };
 
+  // Check if on staff page
+  const isStaffPage = currentPage && currentPage.startsWith('staff-');
+  const isStaff = user && ['front_desk', 'teacher', 'manager', 'owner', 'admin'].includes(user.role);
+
+  // If viewing staff portal, render it fullscreen without public navigation
+  if (isStaffPage && isStaff) {
+    return (
+      <AuthContext.Provider value={{ user }}>
+        <StaffPortal />
+      </AuthContext.Provider>
+    );
+  }
+
+  // Otherwise render public website with navigation and footer
   return (
     <AuthContext.Provider value={{ user }}>
       <div className="min-h-screen flex flex-col">
