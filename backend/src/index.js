@@ -82,6 +82,7 @@ app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/teachers', require('./routes/teachers'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/teacher-insights', require('./routes/teacher-insights'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/social', require('./routes/social'));
