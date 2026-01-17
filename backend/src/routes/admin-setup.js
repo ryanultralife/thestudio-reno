@@ -100,4 +100,82 @@ router.get('/demo-status', authenticate, requireRole('admin'), async (req, res, 
   }
 });
 
+// Public endpoint that only works if no demo data exists (safety check)
+router.post('/populate-demo-public', async (req, res, next) => {
+  const client = await db.getClient();
+
+  try {
+    // Safety check - only allow if no demo data exists
+    const existingCheck = await client.query(
+      "SELECT COUNT(*) FROM users WHERE email LIKE '%@demo.com'"
+    );
+
+    if (parseInt(existingCheck.rows[0].count) > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Demo data already exists. Use authenticated endpoint to re-populate.',
+        existing_demo_users: parseInt(existingCheck.rows[0].count)
+      });
+    }
+
+    console.log('📝 Public demo data population requested (first-time setup)...');
+
+    // Read the demo data SQL file
+    const sqlPath = path.join(__dirname, '../../database/seed-demo-data.sql');
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+
+    console.log('🚀 Executing demo data population...');
+    await client.query(sql);
+
+    // Get counts
+    const studentCount = await client.query(
+      "SELECT COUNT(*) FROM users WHERE role = 'student' AND email LIKE '%@demo.com'"
+    );
+    const teacherCount = await client.query(
+      "SELECT COUNT(*) FROM users WHERE role = 'teacher' AND email LIKE '%@demo.com'"
+    );
+    const classCount = await client.query(
+      "SELECT COUNT(*) FROM classes WHERE date >= CURRENT_DATE - INTERVAL '90 days'"
+    );
+    const bookingCount = await client.query('SELECT COUNT(*) FROM bookings');
+
+    console.log('✅ Demo data populated successfully');
+
+    res.json({
+      success: true,
+      message: 'Demo data populated successfully',
+      data: {
+        students: parseInt(studentCount.rows[0].count),
+        teachers: parseInt(teacherCount.rows[0].count),
+        classes: parseInt(classCount.rows[0].count),
+        bookings: parseInt(bookingCount.rows[0].count),
+      },
+      credentials: {
+        students: [
+          'emma.wilson@demo.com',
+          'michael.chen@demo.com',
+          'sofia.rodriguez@demo.com',
+          '...and 12 more'
+        ],
+        teachers: [
+          'sarah.yoga@demo.com',
+          'raj.mindful@demo.com',
+          'lisa.power@demo.com'
+        ],
+        password: 'demo123'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error populating demo data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to populate demo data'
+    });
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
