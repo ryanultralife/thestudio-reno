@@ -153,13 +153,15 @@ app.use((err, req, res, next) => {
 // ============================================
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   console.log(`
 ╔════════════════════════════════════════╗
 ║     THE STUDIO RENO - API SERVER       ║
 ╠════════════════════════════════════════╣
 ║  Port: ${PORT.toString().padEnd(31)}║
+║  Host: ${HOST.padEnd(31)}║
 ║  Env:  ${(process.env.NODE_ENV || 'development').padEnd(31)}║
 ╚════════════════════════════════════════╝
   `);
