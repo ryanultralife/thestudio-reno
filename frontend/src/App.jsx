@@ -414,6 +414,323 @@ function SchedulePage() {
   );
 }
 
+function ClientDetailView({ client, onUpdate, onToast }) {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: Icons.User },
+    { id: 'bookings', label: 'Bookings', icon: Icons.Calendar },
+    { id: 'notes', label: 'Notes', icon: Icons.File }
+  ];
+
+  const resetPassword = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      onToast({ message: 'Password must be at least 8 characters', type: 'error' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await api(`/users/${client.user.id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ new_password: newPassword })
+      });
+      onToast({ message: `Password reset! New password: ${result.new_password}`, type: 'success' });
+      setShowPasswordReset(false);
+      setNewPassword('');
+    } catch (err) {
+      onToast({ message: err.message, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveEdit = async () => {
+    setLoading(true);
+    try {
+      await api(`/users/${client.user.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(editForm)
+      });
+      onToast({ message: 'Client updated successfully!', type: 'success' });
+      setEditMode(false);
+      onUpdate();
+    } catch (err) {
+      onToast({ message: err.message, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEdit = () => {
+    setEditForm({
+      first_name: client.user.first_name || '',
+      last_name: client.user.last_name || '',
+      phone: client.user.phone || '',
+      emergency_contact_name: client.user.emergency_contact_name || '',
+      emergency_contact_phone: client.user.emergency_contact_phone || ''
+    });
+    setEditMode(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header with actions */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center text-2xl font-bold text-amber-600">
+              {client.user.first_name?.[0]}{client.user.last_name?.[0]}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">{client.user.first_name} {client.user.last_name}</h2>
+              <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                <span className="flex items-center gap-1"><Icons.Mail /> {client.user.email}</span>
+                {client.user.phone && <span className="flex items-center gap-1"><Icons.Phone /> {client.user.phone}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={startEdit} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+              Edit Info
+            </button>
+            <button onClick={() => setShowPasswordReset(true)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+              Reset Password
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        {[
+          { l: 'Total Classes', v: client.stats?.total_classes || 0 },
+          { l: 'No Shows', v: client.stats?.no_shows || 0 },
+          { l: 'Late Cancels', v: client.stats?.late_cancels || 0 },
+          { l: 'Last Visit', v: client.stats?.last_visit ? new Date(client.stats.last_visit).toLocaleDateString() : 'Never' }
+        ].map((s, i) => (
+          <div key={i} className="bg-white rounded-xl shadow-sm p-4 text-center">
+            <p className="text-2xl font-bold text-gray-900">{s.v}</p>
+            <p className="text-sm text-gray-500">{s.l}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 font-medium border-b-2 -mb-px ${
+              activeTab === tab.id
+                ? 'border-amber-600 text-amber-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-4">Active Membership</h3>
+              {client.memberships?.filter(m => m.status === 'active').length > 0 ? (
+                client.memberships.filter(m => m.status === 'active').map((m, i) => (
+                  <div key={i} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <p className="font-semibold text-gray-900">{m.name}</p>
+                    <p className="text-sm text-gray-600">
+                      {m.credits_remaining !== null ? `${m.credits_remaining} credits remaining` : 'Unlimited'}
+                    </p>
+                    {m.end_date && (
+                      <p className="text-sm text-gray-600">Expires: {new Date(m.end_date).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500">No active membership</p>
+              )}
+            </div>
+
+            {client.waivers && client.waivers.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-4">Waivers Signed</h3>
+                <div className="space-y-2">
+                  {client.waivers.map((w, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <span className="text-sm font-medium">{w.name}</span>
+                      <span className="text-xs text-gray-500">{new Date(w.signed_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'bookings' && (
+          <div className="space-y-3">
+            <h3 className="font-semibold text-gray-900 mb-4">Recent Bookings</h3>
+            {client.recent_bookings && client.recent_bookings.length > 0 ? (
+              client.recent_bookings.map((b, i) => (
+                <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">{b.class_name}</p>
+                    <p className="text-sm text-gray-500">
+                      {new Date(b.date).toLocaleDateString()} at {b.start_time?.slice(0, 5)}
+                    </p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm ${
+                    b.status === 'checked_in' ? 'bg-green-100 text-green-700' :
+                    b.status === 'no_show' ? 'bg-red-100 text-red-700' :
+                    b.status === 'late_cancel' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {b.status.replace('_', ' ')}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <EmptyState icon={Icons.Calendar} message="No bookings yet" />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'notes' && (
+          <div className="space-y-3">
+            <h3 className="font-semibold text-gray-900 mb-4">Client Notes</h3>
+            {client.notes && client.notes.length > 0 ? (
+              client.notes.map((n, i) => (
+                <div key={i} className="p-4 bg-gray-50 rounded-lg border">
+                  <p className="text-gray-900">{n.note}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {n.created_by} - {new Date(n.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <EmptyState icon={Icons.File} message="No notes yet" />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Edit Modal */}
+      <Modal isOpen={editMode} onClose={() => setEditMode(false)} title="Edit Client Info">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+              <input
+                type="text"
+                value={editForm.first_name}
+                onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <input
+                type="text"
+                value={editForm.last_name}
+                onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="tel"
+              value={editForm.phone}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Name</label>
+            <input
+              type="text"
+              value={editForm.emergency_contact_name}
+              onChange={(e) => setEditForm({ ...editForm, emergency_contact_name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Phone</label>
+            <input
+              type="tel"
+              value={editForm.emergency_contact_phone}
+              onChange={(e) => setEditForm({ ...editForm, emergency_contact_phone: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <button
+              onClick={() => setEditMode(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveEdit}
+              disabled={loading}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Password Reset Modal */}
+      <Modal isOpen={showPasswordReset} onClose={() => setShowPasswordReset(false)} title="Reset Client Password">
+        <div className="space-y-4">
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              This will reset the client's password. Make sure to share the new password with them securely.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password (min 8 characters)</label>
+            <input
+              type="text"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+              placeholder="Enter new password..."
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <button
+              onClick={() => setShowPasswordReset(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={resetPassword}
+              disabled={loading || !newPassword}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50"
+            >
+              {loading ? 'Resetting...' : 'Reset Password'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 function ClientsPage() {
   const [clients, setClients] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -449,36 +766,7 @@ function ClientsPage() {
           </div>
         </div>
         <div className="lg:col-span-2">
-          {selectedClient ? (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-sm p-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center text-2xl font-bold text-amber-600">{selectedClient.user.first_name?.[0]}{selectedClient.user.last_name?.[0]}</div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">{selectedClient.user.first_name} {selectedClient.user.last_name}</h2>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                      <span className="flex items-center gap-1"><Icons.Mail /> {selectedClient.user.email}</span>
-                      {selectedClient.user.phone && <span className="flex items-center gap-1"><Icons.Phone /> {selectedClient.user.phone}</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 gap-4">
-                {[{ l: 'Total Classes', v: selectedClient.stats?.total_classes || 0 }, { l: 'This Month', v: selectedClient.stats?.classes_this_month || 0 }, { l: 'No Shows', v: selectedClient.stats?.no_shows || 0 }, { l: 'Last Visit', v: selectedClient.stats?.last_visit ? new Date(selectedClient.stats.last_visit).toLocaleDateString() : 'Never' }].map((s, i) => (
-                  <div key={i} className="bg-white rounded-xl shadow-sm p-4 text-center"><p className="text-2xl font-bold text-gray-900">{s.v}</p><p className="text-sm text-gray-500">{s.l}</p></div>
-                ))}
-              </div>
-              <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Membership</h3>
-                {selectedClient.memberships?.filter(m => m.status === 'active').length > 0 ? selectedClient.memberships.filter(m => m.status === 'active').map((m, i) => (
-                  <div key={i} className="p-4 bg-green-50 rounded-lg border border-green-200">
-                    <p className="font-semibold text-gray-900">{m.name}</p>
-                    <p className="text-sm text-gray-600">{m.credits_remaining !== null ? `${m.credits_remaining} credits` : 'Unlimited'}</p>
-                  </div>
-                )) : <p className="text-gray-500">No active membership</p>}
-              </div>
-            </div>
-          ) : <div className="bg-white rounded-xl shadow-sm p-12 text-center"><EmptyState icon={Icons.User} message="Select a client" /></div>}
+          {selectedClient ? <ClientDetailView client={selectedClient} onUpdate={() => loadClient(selectedClient.user.id)} onToast={(t) => setToast(t)} /> : <div className="bg-white rounded-xl shadow-sm p-12 text-center"><EmptyState icon={Icons.User} message="Select a client" /></div>}
         </div>
       </div>
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Add New Client">
