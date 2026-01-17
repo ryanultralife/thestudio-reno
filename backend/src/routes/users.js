@@ -270,6 +270,43 @@ router.put('/:id', requirePermission('user.edit_all'), async (req, res, next) =>
 });
 
 // ============================================
+// RESET USER PASSWORD (Staff - for helping users)
+// ============================================
+
+router.post('/:id/reset-password', requirePermission('user.edit_all'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { new_password } = req.body;
+
+    // Validate password
+    if (!new_password || new_password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    // Hash password
+    const password_hash = await bcrypt.hash(new_password, 12);
+
+    // Update password
+    const result = await db.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id, email',
+      [password_hash, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      message: 'Password reset successfully',
+      user: result.rows[0],
+      new_password // Return for staff to share with user
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
 // DEACTIVATE USER (Manager+)
 // ============================================
 
