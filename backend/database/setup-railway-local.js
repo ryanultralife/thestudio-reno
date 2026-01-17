@@ -19,7 +19,8 @@ const MIGRATIONS = [
   'add-communication-preferences.sql',
   'update-campaign-opt-in-logic.sql',
   'mindbody-migration-schema.sql',
-  'fix-webhook-replay-vulnerability.sql'
+  'fix-webhook-replay-vulnerability.sql',
+  'add-coop-classes.sql'
 ];
 
 async function runMigration(client, filename) {

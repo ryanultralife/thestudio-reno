@@ -79,7 +79,7 @@ router.post('/', authenticate, requirePermission('booking.create_self'), [
 
     // Get class details with lock
     const classResult = await client.query(`
-      SELECT c.*, ct.name as class_name, l.name as location_name,
+      SELECT c.*, ct.name as class_name, ct.drop_in_price, l.name as location_name,
              u.first_name as teacher_first_name, u.last_name as teacher_last_name,
              (SELECT COUNT(*) FROM bookings WHERE class_id = c.id AND status IN ('booked', 'checked_in')) as booked_count
       FROM classes c
@@ -159,28 +159,42 @@ router.post('/', authenticate, requirePermission('booking.create_self'), [
 
     let membershipId = null;
     let creditsUsed = 0;
+    let dropInPaymentRequired = false;
+    let dropInPrice = null;
+
+    // Determine credits required (co-op classes may require multiple credits)
+    const creditsRequired = classData.coop_credits || 1;
 
     if (membershipResult.rows.length > 0) {
       const membership = membershipResult.rows[0];
       membershipId = membership.id;
 
       if (membership.membership_type === 'credits') {
-        if (membership.credits_remaining <= 0) {
+        if (membership.credits_remaining < creditsRequired) {
           await client.query('ROLLBACK');
-          return res.status(400).json({ error: 'No credits remaining' });
+          return res.status(400).json({
+            error: 'Insufficient credits',
+            message: `This class requires ${creditsRequired} credit(s). You have ${membership.credits_remaining} remaining.`,
+          });
         }
-        creditsUsed = 1;
+        creditsUsed = creditsRequired;
         await client.query(
-          'UPDATE user_memberships SET credits_remaining = credits_remaining - 1 WHERE id = $1',
-          [membership.id]
+          'UPDATE user_memberships SET credits_remaining = credits_remaining - $1 WHERE id = $2',
+          [creditsRequired, membership.id]
         );
       }
     } else {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ 
-        error: 'No active membership',
-        message: 'Please purchase a membership or class pack to book',
-      });
+      // No membership - allow drop-in booking
+      dropInPaymentRequired = true;
+      dropInPrice = classData.is_coop_class ? classData.coop_price : classData.drop_in_price;
+
+      if (!dropInPrice) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'Drop-in booking not available',
+          message: 'Please purchase a membership to book this class',
+        });
+      }
     }
 
     // Create booking
@@ -196,17 +210,22 @@ router.post('/', authenticate, requirePermission('booking.create_self'), [
     notifications.notifyBookingConfirmation(userId, classData).catch(console.error);
 
     res.status(201).json({
-      message: 'Class booked successfully',
+      message: dropInPaymentRequired
+        ? 'Class reserved - payment required'
+        : 'Class booked successfully',
       booking: {
         id: bookingResult.rows[0].id,
         status: 'booked',
         credits_used: creditsUsed,
+        drop_in_payment_required: dropInPaymentRequired,
+        drop_in_price: dropInPrice,
         class: {
           name: classData.class_name,
           date: classData.date,
           time: classData.start_time,
           location: classData.location_name,
           teacher: `${classData.teacher_first_name} ${classData.teacher_last_name}`,
+          is_coop_class: classData.is_coop_class || false,
         },
       },
     });

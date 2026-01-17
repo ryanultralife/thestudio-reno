@@ -624,8 +624,11 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
                     <p className="text-center text-gray-400 text-sm py-4">No classes</p>
                   ) : (
                     filteredClasses.map((cls) => (
-                      <button key={cls.id} onClick={() => handleClassClick(cls)} className="w-full text-left p-3 rounded-lg hover:bg-amber-50 border border-gray-100 hover:border-amber-200 transition">
-                        <p className="font-semibold text-amber-600">{cls.start_time?.slice(0, 5)}</p>
+                      <button key={cls.id} onClick={() => handleClassClick(cls)} className={`w-full text-left p-3 rounded-lg border transition ${cls.is_coop_class ? 'bg-purple-50/50 hover:bg-purple-100 border-purple-200' : 'hover:bg-amber-50 border-gray-100 hover:border-amber-200'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className={`font-semibold ${cls.is_coop_class ? 'text-purple-600' : 'text-amber-600'}`}>{cls.start_time?.slice(0, 5)}</p>
+                          {cls.is_coop_class && <span className="text-[10px] px-1.5 py-0.5 bg-purple-200 text-purple-800 rounded font-medium">Co-op</span>}
+                        </div>
                         <p className="font-medium text-gray-900 text-sm">{cls.class_name}</p>
                         <p className="text-xs text-gray-500">{cls.teacher_name}</p>
                         <div className="flex items-center justify-between mt-1">
@@ -634,6 +637,9 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
                             {cls.booked >= cls.capacity ? 'Full' : `${cls.capacity - cls.booked} spots`}
                           </span>
                         </div>
+                        {cls.is_coop_class && cls.coop_price && (
+                          <p className="text-[10px] text-purple-600 mt-1">${cls.coop_price} • {cls.coop_credits || 1} credit(s)</p>
+                        )}
                       </button>
                     ))
                   )}

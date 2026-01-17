@@ -29,11 +29,12 @@ router.get('/schedule', async (req, res, next) => {
     })();
 
     let query = `
-      SELECT 
+      SELECT
         c.id, c.date, c.start_time, c.end_time, c.capacity, c.is_cancelled,
-        c.notes,
-        ct.id as class_type_id, ct.name as class_name, ct.duration, 
+        c.notes, c.is_coop_class, c.coop_price, c.coop_credits,
+        ct.id as class_type_id, ct.name as class_name, ct.duration,
         ct.category, ct.is_heated, ct.level, ct.description as class_description,
+        ct.drop_in_price,
         l.id as location_id, l.name as location_name, l.short_name as location_short,
         t.id as teacher_id,
         u.first_name as teacher_first_name, u.last_name as teacher_last_name,
@@ -236,13 +237,125 @@ router.post('/', authenticate, requirePermission('class.create'), [
     const endMinutes = hours * 60 + minutes + duration;
     const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
+    const { is_coop_class, coop_price, coop_credits } = req.body;
+
     const result = await db.query(`
-      INSERT INTO classes (class_type_id, teacher_id, location_id, date, start_time, end_time, capacity, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO classes (
+        class_type_id, teacher_id, location_id, date, start_time, end_time, capacity, notes,
+        is_coop_class, coop_price, coop_credits, created_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
-    `, [class_type_id, teacher_id, location_id, date, start_time, endTime, capacity || defaultCapacity, notes]);
+    `, [
+      class_type_id, teacher_id, location_id, date, start_time, endTime,
+      capacity || defaultCapacity, notes,
+      is_coop_class || false,
+      coop_price || null,
+      coop_credits || 1,
+      req.user.id
+    ]);
 
     res.status(201).json({ message: 'Class created', class: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// CREATE CO-OP CLASS (Teachers)
+// ============================================
+
+router.post('/coop', authenticate, requirePermission('coop.create_class'), [
+  body('class_name').trim().notEmpty(),
+  body('description').optional().trim(),
+  body('location_id').isUUID(),
+  body('date').isISO8601(),
+  body('start_time').matches(/^\d{2}:\d{2}$/),
+  body('duration').isInt({ min: 30, max: 300 }),
+  body('capacity').isInt({ min: 1, max: 50 }),
+  body('price').isFloat({ min: 0 }),
+  body('credits').optional().isInt({ min: 0, max: 10 }),
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    }
+
+    const {
+      class_name,
+      description,
+      location_id,
+      date,
+      start_time,
+      duration,
+      capacity,
+      price,
+      credits
+    } = req.body;
+
+    // Get user's teacher record
+    const teacherResult = await db.query(
+      'SELECT id FROM teachers WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    if (teacherResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Only teachers can create co-op classes' });
+    }
+
+    const teacher_id = teacherResult.rows[0].id;
+
+    // Get or create co-op class type
+    let classTypeResult = await db.query(
+      "SELECT id FROM class_types WHERE name = $1 AND category = 'coop'",
+      [class_name]
+    );
+
+    let class_type_id;
+    if (classTypeResult.rows.length === 0) {
+      // Create new co-op class type
+      const newType = await db.query(`
+        INSERT INTO class_types (name, description, duration, category, level, is_active, sort_order)
+        VALUES ($1, $2, $3, 'coop', 'all', true, 100)
+        RETURNING id
+      `, [class_name, description || '', duration]);
+      class_type_id = newType.rows[0].id;
+    } else {
+      class_type_id = classTypeResult.rows[0].id;
+    }
+
+    // Calculate end time
+    const [hours, minutes] = start_time.split(':').map(Number);
+    const endMinutes = hours * 60 + minutes + duration;
+    const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
+
+    // Create the co-op class
+    const result = await db.query(`
+      INSERT INTO classes (
+        class_type_id, teacher_id, location_id, date, start_time, end_time,
+        capacity, notes, is_coop_class, coop_price, coop_credits, created_by
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, $11)
+      RETURNING *
+    `, [
+      class_type_id,
+      teacher_id,
+      location_id,
+      date,
+      start_time,
+      endTime,
+      capacity,
+      description,
+      price,
+      credits || 1,
+      req.user.id
+    ]);
+
+    res.status(201).json({
+      message: 'Co-op class created successfully',
+      class: result.rows[0]
+    });
   } catch (error) {
     next(error);
   }

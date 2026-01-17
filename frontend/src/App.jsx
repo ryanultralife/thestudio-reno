@@ -355,22 +355,59 @@ function SchedulePage() {
       </div>
       {loading ? <div className="flex items-center justify-center h-64"><Spinner /></div> : (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {schedule.length === 0 ? <EmptyState icon={Icons.Calendar} message="No classes" /> : schedule.map(day => (
-            <div key={day.date} className="border-b last:border-0">
-              <div className="px-6 py-3 bg-gray-50 font-medium text-gray-700">{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-              <div className="divide-y divide-gray-50">
-                {day.classes.map(c => (
-                  <div key={c.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration}min</p></div>
-                      <div><p className="font-medium text-gray-900">{c.class_name}</p><p className="text-sm text-gray-500">{c.teacher_name}</p></div>
-                    </div>
-                    <p className={`font-medium ${c.booked >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
+          {schedule.length === 0 ? <EmptyState icon={Icons.Calendar} message="No classes" /> : schedule.map(day => {
+            // Separate co-op and studio classes
+            const studioClasses = day.classes.filter(c => !c.is_coop_class);
+            const coopClasses = day.classes.filter(c => c.is_coop_class);
+
+            return (
+              <div key={day.date} className="border-b last:border-0">
+                <div className="px-6 py-3 bg-gray-50 font-medium text-gray-700">{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+
+                {/* Studio Classes */}
+                {studioClasses.length > 0 && (
+                  <div className="divide-y divide-gray-50">
+                    {studioClasses.map(c => (
+                      <div key={c.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration}min</p></div>
+                          <div><p className="font-medium text-gray-900">{c.class_name}</p><p className="text-sm text-gray-500">{c.teacher_name}</p></div>
+                        </div>
+                        <p className={`font-medium ${c.booked >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                {/* Co-op Classes */}
+                {coopClasses.length > 0 && (
+                  <>
+                    <div className="px-6 py-2 bg-purple-50 border-y border-purple-100">
+                      <p className="text-sm font-semibold text-purple-700">Community Co-op Classes</p>
+                    </div>
+                    <div className="divide-y divide-gray-50 bg-purple-50/30">
+                      {coopClasses.map(c => (
+                        <div key={c.id} className="px-6 py-4 flex items-center justify-between hover:bg-purple-50/50">
+                          <div className="flex items-center gap-4">
+                            <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration}min</p></div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-gray-900">{c.class_name}</p>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Co-op</span>
+                              </div>
+                              <p className="text-sm text-gray-500">{c.teacher_name}</p>
+                              {c.coop_price && <p className="text-xs text-purple-600 mt-1">${c.coop_price} drop-in • {c.coop_credits || 1} credit(s)</p>}
+                            </div>
+                          </div>
+                          <p className={`font-medium ${c.booked >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
