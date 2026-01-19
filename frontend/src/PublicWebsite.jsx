@@ -323,16 +323,17 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
 
             {/* Public links */}
             <button onClick={() => setCurrentPage('schedule')} className={`${currentPage === 'schedule' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Schedule</button>
-            <button onClick={() => setCurrentPage('teachers')} className={`${currentPage === 'teachers' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Teachers</button>
 
             {/* Admin-only links */}
             {isAdmin && (
               <>
+                <button onClick={() => setCurrentPage('classes')} className={`${currentPage === 'classes' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Classes</button>
                 <button onClick={() => setCurrentPage('clients')} className={`${currentPage === 'clients' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Clients</button>
                 <button onClick={() => setCurrentPage('reports')} className={`${currentPage === 'reports' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Reports</button>
               </>
             )}
 
+            <button onClick={() => setCurrentPage('teachers')} className={`${currentPage === 'teachers' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Teachers</button>
             <button onClick={() => setCurrentPage('pricing')} className={`${currentPage === 'pricing' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Pricing</button>
             <button onClick={() => setCurrentPage('shop')} className={`${currentPage === 'shop' ? 'text-amber-600' : 'text-gray-600'} hover:text-gray-900`}>Shop</button>
 
@@ -361,13 +362,14 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
               <button onClick={() => { setCurrentPage('dashboard'); setMobileOpen(false); }} className="block w-full text-left text-gray-600 font-medium">Dashboard</button>
             )}
             <button onClick={() => { setCurrentPage('schedule'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Schedule</button>
-            <button onClick={() => { setCurrentPage('teachers'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Teachers</button>
             {isAdmin && (
               <>
+                <button onClick={() => { setCurrentPage('classes'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Classes</button>
                 <button onClick={() => { setCurrentPage('clients'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Clients</button>
                 <button onClick={() => { setCurrentPage('reports'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Reports</button>
               </>
             )}
+            <button onClick={() => { setCurrentPage('teachers'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Teachers</button>
             <button onClick={() => { setCurrentPage('pricing'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Pricing</button>
             <button onClick={() => { setCurrentPage('shop'); setMobileOpen(false); }} className="block w-full text-left text-gray-600">Shop</button>
             {user ? (
@@ -1880,12 +1882,12 @@ function DashboardPage({ setCurrentPage }) {
           <div className="text-xs text-amber-600 mt-2">View all clients →</div>
         </button>
         <button
-          onClick={() => setCurrentPage('schedule')}
+          onClick={() => setCurrentPage('classes')}
           className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
         >
           <div className="text-sm text-gray-500 mb-2">Today's Classes</div>
           <div className="text-3xl font-bold text-gray-900">{stats?.today?.classes || 0}</div>
-          <div className="text-xs text-amber-600 mt-2">View schedule →</div>
+          <div className="text-xs text-amber-600 mt-2">View all classes →</div>
         </button>
         <button
           onClick={() => setCurrentPage('schedule')}
@@ -2014,13 +2016,96 @@ function ReportsPage({ setCurrentPage }) {
           <div className="text-amber-600 text-sm">View clients →</div>
         </button>
         <button
-          onClick={() => setCurrentPage('schedule')}
+          onClick={() => setCurrentPage('classes')}
           className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
         >
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Classes</h2>
           <p className="text-gray-500 mb-3">Monitor class capacity, popularity, and performance</p>
-          <div className="text-amber-600 text-sm">View schedule →</div>
+          <div className="text-amber-600 text-sm">View classes →</div>
         </button>
+      </div>
+    </div>
+  );
+}
+
+function AdminClassesPage({ setCurrentPage }) {
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    const loadClasses = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const data = await api(`/classes/schedule?start_date=${today}&end_date=${endDate}`);
+
+        // Flatten the schedule into a list of classes
+        const allClasses = data.schedule?.flatMap(day =>
+          day.classes?.map(cls => ({ ...cls, date: day.date })) || []
+        ) || [];
+
+        setClasses(allClasses);
+      } catch (err) {
+        console.error('Error loading classes:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadClasses();
+  }, []);
+
+  const filteredClasses = classes.filter(cls => {
+    if (filter === 'all') return true;
+    if (filter === 'full') return cls.booked >= cls.capacity;
+    if (filter === 'available') return cls.booked < cls.capacity;
+    return true;
+  });
+
+  if (loading) return <div className="max-w-7xl mx-auto px-4 py-12 flex justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600"></div></div>;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Classes</h1>
+        <div className="flex gap-2">
+          <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg ${filter === 'all' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600'}`}>All</button>
+          <button onClick={() => setFilter('available')} className={`px-4 py-2 rounded-lg ${filter === 'available' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Available</button>
+          <button onClick={() => setFilter('full')} className={`px-4 py-2 rounded-lg ${filter === 'full' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Full</button>
+        </div>
+      </div>
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Class</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teacher</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Capacity</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredClasses.map((cls, idx) => (
+              <tr key={idx} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => console.log('View class:', cls.id)}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(cls.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cls.start_time?.slice(0, 5)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cls.class_name}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cls.teacher_name}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cls.location_name || 'Main Studio'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span className={`px-2 py-1 rounded-full text-xs ${cls.booked >= cls.capacity ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                    {cls.booked || 0}/{cls.capacity}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredClasses.length === 0 && (
+          <div className="text-center py-12 text-gray-500">No classes found.</div>
+        )}
       </div>
     </div>
   );
@@ -2099,7 +2184,7 @@ export default function PublicWebsite() {
       // Public pages
       case 'home': return <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
       case 'schedule': return <SchedulePage user={user} onShowAuth={handleShowAuth} onBookClass={handleBookClass} />;
-      case 'classes': return <ClassesPage />;
+      case 'classes': return user && ['admin', 'owner', 'manager'].includes(user.role) ? <AdminClassesPage setCurrentPage={setCurrentPage} /> : <ClassesPage />;
       case 'teachers': return <TeachersPage />;
       case 'pricing': return <PricingPage onShowAuth={handleShowAuth} />;
       case 'for-teachers': return <ForTeachersPage onShowAuth={handleShowAuth} />;
