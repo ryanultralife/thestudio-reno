@@ -584,7 +584,12 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
       endDate.setDate(endDate.getDate() + 6);
       const res = await fetch(`${API_URL}/classes/schedule?start_date=${startDate.toISOString().split('T')[0]}&end_date=${endDate.toISOString().split('T')[0]}`);
       const data = await res.json();
-      setSchedule(data.schedule || []);
+
+      // Transform by_date object to schedule array
+      const scheduleArray = data.by_date ?
+        Object.entries(data.by_date).map(([date, classes]) => ({ date, classes })) :
+        [];
+      setSchedule(scheduleArray);
     } catch (err) { console.error('Failed to load schedule:', err); }
     finally { setLoading(false); }
   };
@@ -1918,8 +1923,8 @@ function ClientsPage({ setCurrentPage }) {
   useEffect(() => {
     const loadClients = async () => {
       try {
-        const data = await api('/clients');
-        setClients(data);
+        const data = await api('/users/search?limit=100');
+        setClients(data.users || []);
       } catch (err) {
         console.error('Error loading clients:', err);
       } finally {
@@ -2040,12 +2045,14 @@ function AdminClassesPage({ setCurrentPage }) {
         const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         const data = await api(`/classes/schedule?start_date=${today}&end_date=${endDate}`);
 
-        // Flatten the schedule into a list of classes
-        const allClasses = data.schedule?.flatMap(day =>
-          day.classes?.map(cls => ({ ...cls, date: day.date })) || []
-        ) || [];
+        // Transform API data to match component expectations
+        const transformedClasses = (data.classes || []).map(cls => ({
+          ...cls,
+          booked: parseInt(cls.booked_count) || 0,
+          teacher_name: `${cls.teacher_first_name} ${cls.teacher_last_name}`
+        }));
 
-        setClasses(allClasses);
+        setClasses(transformedClasses);
       } catch (err) {
         console.error('Error loading classes:', err);
       } finally {
