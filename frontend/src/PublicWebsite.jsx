@@ -1847,7 +1847,7 @@ function AccountPage({ user, onLogout }) {
 // ADMIN PAGES (Integrated into public layout)
 // ============================================
 
-function DashboardPage() {
+function DashboardPage({ setCurrentPage }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1871,30 +1871,47 @@ function DashboardPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <button
+          onClick={() => setCurrentPage('clients')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
           <div className="text-sm text-gray-500 mb-2">Active Members</div>
           <div className="text-3xl font-bold text-gray-900">{stats?.memberships?.active || 0}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="text-xs text-amber-600 mt-2">View all clients →</div>
+        </button>
+        <button
+          onClick={() => setCurrentPage('schedule')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
           <div className="text-sm text-gray-500 mb-2">Today's Classes</div>
           <div className="text-3xl font-bold text-gray-900">{stats?.today?.classes || 0}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="text-xs text-amber-600 mt-2">View schedule →</div>
+        </button>
+        <button
+          onClick={() => setCurrentPage('schedule')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
           <div className="text-sm text-gray-500 mb-2">Checked In</div>
           <div className="text-3xl font-bold text-gray-900">{stats?.today?.checked_in || 0}</div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="text-xs text-amber-600 mt-2">View today's schedule →</div>
+        </button>
+        <button
+          onClick={() => setCurrentPage('clients')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
           <div className="text-sm text-gray-500 mb-2">New This Week</div>
           <div className="text-3xl font-bold text-gray-900">{stats?.new_members_this_week || 0}</div>
-        </div>
+          <div className="text-xs text-amber-600 mt-2">View new clients →</div>
+        </button>
       </div>
     </div>
   );
 }
 
-function ClientsPage() {
+function ClientsPage({ setCurrentPage }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const loadClients = async () => {
@@ -1910,11 +1927,24 @@ function ClientsPage() {
     loadClients();
   }, []);
 
+  const filteredClients = clients.filter(client =>
+    `${client.first_name} ${client.last_name} ${client.email}`.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) return <div className="max-w-7xl mx-auto px-4 py-12 flex justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600"></div></div>;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Clients</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
+        <input
+          type="text"
+          placeholder="Search clients..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-600 focus:border-transparent"
+        />
+      </div>
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -1926,8 +1956,12 @@ function ClientsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {clients.map((client) => (
-              <tr key={client.id}>
+            {filteredClients.map((client) => (
+              <tr
+                key={client.id}
+                className="hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => console.log('View client:', client.id)}
+              >
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client.first_name} {client.last_name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.email}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.phone || '-'}</td>
@@ -1940,32 +1974,53 @@ function ClientsPage() {
             ))}
           </tbody>
         </table>
+        {filteredClients.length === 0 && (
+          <div className="text-center py-12 text-gray-500">
+            {searchTerm ? 'No clients found matching your search.' : 'No clients yet.'}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function ReportsPage() {
+function ReportsPage({ setCurrentPage }) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Reports</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Revenue</h2>
-          <p className="text-gray-500">Revenue reports coming soon...</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance</h2>
-          <p className="text-gray-500">Attendance reports coming soon...</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Memberships</h2>
-          <p className="text-gray-500">Membership reports coming soon...</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Classes</h2>
-          <p className="text-gray-500">Class reports coming soon...</p>
-        </div>
+        <button
+          onClick={() => alert('Revenue reports coming soon!')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Revenue</h2>
+          <p className="text-gray-500 mb-3">Track income from memberships, classes, and retail</p>
+          <div className="text-amber-600 text-sm">View report →</div>
+        </button>
+        <button
+          onClick={() => setCurrentPage('schedule')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Attendance</h2>
+          <p className="text-gray-500 mb-3">See class check-ins and attendance trends</p>
+          <div className="text-amber-600 text-sm">View schedule →</div>
+        </button>
+        <button
+          onClick={() => setCurrentPage('clients')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Memberships</h2>
+          <p className="text-gray-500 mb-3">Analyze active members, renewals, and retention</p>
+          <div className="text-amber-600 text-sm">View clients →</div>
+        </button>
+        <button
+          onClick={() => setCurrentPage('schedule')}
+          className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Classes</h2>
+          <p className="text-gray-500 mb-3">Monitor class capacity, popularity, and performance</p>
+          <div className="text-amber-600 text-sm">View schedule →</div>
+        </button>
       </div>
     </div>
   );
@@ -2032,14 +2087,14 @@ export default function PublicWebsite() {
     // Redirect staff to dashboard when on home
     if (currentPage === 'home' && isStaff) {
       setCurrentPage('dashboard');
-      return <DashboardPage />;
+      return <DashboardPage setCurrentPage={setCurrentPage} />;
     }
 
     switch (currentPage) {
       // Admin pages
-      case 'dashboard': return isStaff ? <DashboardPage /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
-      case 'clients': return <ClientsPage />;
-      case 'reports': return <ReportsPage />;
+      case 'dashboard': return isStaff ? <DashboardPage setCurrentPage={setCurrentPage} /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
+      case 'clients': return <ClientsPage setCurrentPage={setCurrentPage} />;
+      case 'reports': return <ReportsPage setCurrentPage={setCurrentPage} />;
 
       // Public pages
       case 'home': return <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
