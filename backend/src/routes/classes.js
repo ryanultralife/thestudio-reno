@@ -28,18 +28,23 @@ router.get('/schedule', async (req, res, next) => {
       return d.toISOString().split('T')[0];
     })();
 
+    const { class_model, include_coop } = req.query;
+
     let query = `
-      SELECT 
+      SELECT
         c.id, c.date, c.start_time, c.end_time, c.capacity, c.is_cancelled,
-        c.notes,
-        ct.id as class_type_id, ct.name as class_name, ct.duration, 
+        c.notes, c.class_model,
+        c.coop_drop_in_price, c.coop_member_price,
+        ct.id as class_type_id, ct.name as class_name, ct.duration,
         ct.category, ct.is_heated, ct.level, ct.description as class_description,
+        ct.color as class_color,
         l.id as location_id, l.name as location_name, l.short_name as location_short,
         t.id as teacher_id,
         u.first_name as teacher_first_name, u.last_name as teacher_last_name,
-        t.photo_url as teacher_photo,
+        t.photo_url as teacher_photo, t.title as teacher_title,
         COALESCE(sub_u.first_name, '') as sub_first_name,
         COALESCE(sub_u.last_name, '') as sub_last_name,
+        r.id as room_id, r.name as room_name,
         COUNT(b.id) FILTER (WHERE b.status IN ('booked', 'checked_in')) as booked_count,
         c.capacity - COUNT(b.id) FILTER (WHERE b.status IN ('booked', 'checked_in')) as spots_left
       FROM classes c
@@ -49,8 +54,10 @@ router.get('/schedule', async (req, res, next) => {
       JOIN users u ON t.user_id = u.id
       LEFT JOIN teachers sub_t ON c.substitute_teacher_id = sub_t.id
       LEFT JOIN users sub_u ON sub_t.user_id = sub_u.id
+      LEFT JOIN rooms r ON c.room_id = r.id
       LEFT JOIN bookings b ON b.class_id = c.id
       WHERE c.date BETWEEN $1 AND $2
+        AND c.is_cancelled = FALSE
     `;
 
     const params = [startDate, endDate];
@@ -74,37 +81,63 @@ router.get('/schedule', async (req, res, next) => {
       paramIndex++;
     }
 
+    // Filter by class model (traditional, coop_rental, monthly_tenant)
+    if (class_model) {
+      query += ` AND c.class_model = $${paramIndex}`;
+      params.push(class_model);
+      paramIndex++;
+    } else if (include_coop === 'false') {
+      // Exclude co-op classes unless explicitly included
+      query += ` AND (c.class_model IS NULL OR c.class_model = 'traditional')`;
+    }
+
     query += `
-      GROUP BY c.id, ct.id, l.id, t.id, u.id, sub_u.first_name, sub_u.last_name
+      GROUP BY c.id, ct.id, l.id, t.id, u.id, sub_u.first_name, sub_u.last_name, r.id
       ORDER BY c.date, c.start_time
     `;
 
     const result = await db.query(query, params);
 
-    // Format each class with teacher name
-    const formattedClasses = result.rows.map(cls => ({
-      id: cls.id,
-      date: cls.date,
-      start_time: cls.start_time,
-      end_time: cls.end_time,
-      capacity: cls.capacity,
-      booked: parseInt(cls.booked_count) || 0,
-      spots_left: parseInt(cls.spots_left) || cls.capacity,
-      is_cancelled: cls.is_cancelled,
-      class_type_id: cls.class_type_id,
-      class_name: cls.class_name,
-      duration: cls.duration,
-      category: cls.category,
-      is_heated: cls.is_heated,
-      level: cls.level,
-      location_id: cls.location_id,
-      location_name: cls.location_name,
-      teacher_id: cls.teacher_id,
-      teacher_name: cls.sub_first_name
+    // Format each class with teacher name and co-op info
+    const formattedClasses = result.rows.map(cls => {
+      const isCoop = cls.class_model && cls.class_model !== 'traditional';
+      const teacherName = cls.sub_first_name
         ? `${cls.sub_first_name} ${cls.sub_last_name} (sub for ${cls.teacher_first_name})`
-        : `${cls.teacher_first_name} ${cls.teacher_last_name}`,
-      teacher_photo: cls.teacher_photo,
-    }));
+        : `${cls.teacher_first_name} ${cls.teacher_last_name}`;
+
+      return {
+        id: cls.id,
+        date: cls.date,
+        start_time: cls.start_time,
+        end_time: cls.end_time,
+        capacity: cls.capacity,
+        booked: parseInt(cls.booked_count) || 0,
+        spots_left: parseInt(cls.spots_left) || cls.capacity,
+        is_cancelled: cls.is_cancelled,
+        class_type_id: cls.class_type_id,
+        class_name: cls.class_name,
+        class_description: cls.class_description,
+        duration: cls.duration,
+        category: cls.category,
+        is_heated: cls.is_heated,
+        level: cls.level,
+        class_color: cls.class_color || (isCoop ? '#9333ea' : '#d97706'), // Purple for co-op, amber default
+        location_id: cls.location_id,
+        location_name: cls.location_name,
+        location_short: cls.location_short,
+        room_id: cls.room_id,
+        room_name: cls.room_name,
+        teacher_id: cls.teacher_id,
+        teacher_name: teacherName,
+        teacher_title: cls.teacher_title,
+        teacher_photo: cls.teacher_photo,
+        // Co-op specific fields
+        is_coop: isCoop,
+        class_model: cls.class_model || 'traditional',
+        coop_drop_in_price: isCoop ? cls.coop_drop_in_price : null,
+        coop_member_price: isCoop ? cls.coop_member_price : null,
+      };
+    });
 
     // Group by date for easier frontend rendering
     const byDate = {};

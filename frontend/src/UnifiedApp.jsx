@@ -203,19 +203,24 @@ function SchedulePage() {
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [filter, setFilter] = useState('all'); // 'all', 'traditional', 'coop'
 
   useEffect(() => {
     const load = async () => {
       try {
         const start = selectedDate.toISOString().split('T')[0];
         const end = new Date(selectedDate); end.setDate(end.getDate() + 6);
-        const data = await api(`/classes/schedule?start_date=${start}&end_date=${end.toISOString().split('T')[0]}`);
+        let url = `/classes/schedule?start_date=${start}&end_date=${end.toISOString().split('T')[0]}`;
+        if (filter === 'coop') url += '&class_model=coop_rental&include_coop=true';
+        else if (filter === 'traditional') url += '&include_coop=false';
+        else url += '&include_coop=true';
+        const data = await api(url);
         setSchedule(data.schedule || []);
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     };
     load();
-  }, [selectedDate]);
+  }, [selectedDate, filter]);
 
   const shiftWeek = (dir) => { const d = new Date(selectedDate); d.setDate(d.getDate() + dir * 7); setSelectedDate(d); };
 
@@ -223,14 +228,23 @@ function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Class Schedule</h1>
-        <div className="flex items-center gap-2">
-          <button onClick={() => shiftWeek(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronLeft /></button>
-          <span className="text-sm font-medium text-gray-700">
-            {formatDate(selectedDate, { month: 'short', day: 'numeric' })} - {formatDate(new Date(selectedDate.getTime() + 6 * 86400000), { month: 'short', day: 'numeric' })}
-          </span>
-          <button onClick={() => shiftWeek(1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronRight /></button>
+        <div className="flex items-center gap-4">
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            {[['all', 'All Classes'], ['traditional', 'Traditional'], ['coop', 'Co-op']].map(([key, label]) => (
+              <button key={key} onClick={() => setFilter(key)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${filter === key ? (key === 'coop' ? 'bg-purple-600 text-white' : 'bg-white shadow text-gray-900') : 'text-gray-600 hover:text-gray-900'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => shiftWeek(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronLeft /></button>
+            <span className="text-sm font-medium text-gray-700">
+              {formatDate(selectedDate, { month: 'short', day: 'numeric' })} - {formatDate(new Date(selectedDate.getTime() + 6 * 86400000), { month: 'short', day: 'numeric' })}
+            </span>
+            <button onClick={() => shiftWeek(1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronRight /></button>
+          </div>
         </div>
       </div>
       <div className={`${cardClass} overflow-hidden`}>
@@ -240,14 +254,33 @@ function SchedulePage() {
               <div className="bg-gray-50 px-6 py-3 border-b"><h3 className="font-semibold text-gray-900">{formatDate(day.date, { weekday: 'long', month: 'long', day: 'numeric' })}</h3></div>
               <div className="divide-y">
                 {day.classes?.map((cls, j) => (
-                  <div key={j} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                  <div key={j} className={`px-6 py-4 flex items-center justify-between hover:bg-gray-50 ${cls.is_coop ? 'border-l-4 border-purple-500' : ''}`}>
                     <div className="flex items-center gap-4">
                       <div className="text-sm text-gray-500 w-20">{cls.start_time?.slice(0, 5)}</div>
-                      <div><p className="font-medium text-gray-900">{cls.class_name}</p><p className="text-sm text-gray-500">{cls.teacher_name} • {cls.duration} min</p></div>
+                      <div className="flex items-center gap-2">
+                        {cls.class_color && <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cls.class_color }} />}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-gray-900">{cls.class_name}</p>
+                            {cls.is_coop && <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">Co-op</span>}
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            {cls.teacher_name}{cls.teacher_title ? ` (${cls.teacher_title})` : ''} • {cls.duration} min
+                            {cls.location_short && ` • ${cls.location_short}`}
+                          </p>
+                          {cls.is_coop && cls.coop_drop_in_price && (
+                            <p className="text-sm text-purple-600 mt-1">
+                              Drop-in: ${cls.coop_drop_in_price} | Member: ${cls.coop_member_price}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right"><p className="text-sm font-medium">{cls.booked || 0}/{cls.capacity}</p></div>
-                      <Button size="sm" disabled={(cls.booked || 0) >= cls.capacity}>{(cls.booked || 0) >= cls.capacity ? 'Full' : 'Book'}</Button>
+                      <Button size="sm" variant={cls.is_coop ? 'outline' : 'primary'} disabled={(cls.booked || 0) >= cls.capacity} className={cls.is_coop ? 'border-purple-500 text-purple-600 hover:bg-purple-50' : ''}>
+                        {(cls.booked || 0) >= cls.capacity ? 'Full' : 'Book'}
+                      </Button>
                     </div>
                   </div>
                 ))}
