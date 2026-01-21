@@ -4,6 +4,21 @@
 -- ============================================
 
 -- ============================================
+-- ADD CO-OP FIELDS TO TEACHERS TABLE (if not exists)
+-- Must run FIRST before inserting teachers with these columns
+-- ============================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'is_coop_teacher') THEN
+    ALTER TABLE teachers ADD COLUMN is_coop_teacher BOOLEAN DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'coop_tier') THEN
+    ALTER TABLE teachers ADD COLUMN coop_tier VARCHAR(30) CHECK (coop_tier IN ('coop_rental', 'monthly_tenant'));
+  END IF;
+END $$;
+
+-- ============================================
 -- CO-OP CLASS TYPES (Purple color)
 -- These are specialty classes offered by co-op teachers
 -- ============================================
@@ -113,20 +128,6 @@ SELECT id, 'Movement Facilitator',
        TRUE, 'coop_rental'
 FROM users WHERE email = 'maya@movementmedicine.co'
 ON CONFLICT DO NOTHING;
-
--- ============================================
--- ADD CO-OP FIELDS TO TEACHERS TABLE (if not exists)
--- ============================================
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'is_coop_teacher') THEN
-    ALTER TABLE teachers ADD COLUMN is_coop_teacher BOOLEAN DEFAULT FALSE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'teachers' AND column_name = 'coop_tier') THEN
-    ALTER TABLE teachers ADD COLUMN coop_tier VARCHAR(30) CHECK (coop_tier IN ('coop_rental', 'monthly_tenant'));
-  END IF;
-END $$;
 
 -- ============================================
 -- CREATE SAMPLE CO-OP CLASSES FOR MORAN
