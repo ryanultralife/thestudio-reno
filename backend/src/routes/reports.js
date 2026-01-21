@@ -160,7 +160,115 @@ router.get('/class-popularity', requirePermission('report.basic'), async (req, r
 });
 
 // ============================================
-// TEACHER STATS
+// MY STATS (Teacher self-service)
+// ============================================
+
+router.get('/my-stats', authenticate, async (req, res, next) => {
+  try {
+    // Find teacher record for current user
+    const teacherResult = await db.query(
+      'SELECT id, is_coop_teacher, coop_tier FROM teachers WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    if (teacherResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Teacher profile not found' });
+    }
+
+    const teacher = teacherResult.rows[0];
+    const { start_date, end_date } = req.query;
+
+    const startDate = start_date || (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return d.toISOString().split('T')[0];
+    })();
+    const endDate = end_date || new Date().toISOString().split('T')[0];
+
+    // Get class stats
+    const classStats = await db.query(`
+      SELECT
+        COUNT(DISTINCT c.id) as classes_taught,
+        COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as total_students,
+        ROUND(COUNT(b.id) FILTER (WHERE b.status = 'checked_in')::numeric / NULLIF(COUNT(DISTINCT c.id), 0), 1) as avg_per_class,
+        COUNT(DISTINCT c.id) FILTER (WHERE c.class_model IN ('coop_rental', 'monthly_tenant')) as coop_classes,
+        COUNT(DISTINCT c.id) FILTER (WHERE c.class_model = 'traditional' OR c.class_model IS NULL) as traditional_classes
+      FROM classes c
+      LEFT JOIN bookings b ON b.class_id = c.id
+      WHERE c.teacher_id = $1
+        AND c.date BETWEEN $2 AND $3
+        AND c.is_cancelled = false
+    `, [teacher.id, startDate, endDate]);
+
+    // Get upcoming classes
+    const upcomingClasses = await db.query(`
+      SELECT
+        c.id, c.date, c.start_time, c.end_time, c.class_model,
+        c.coop_drop_in_price, c.coop_member_price,
+        ct.name as class_name,
+        l.name as location,
+        c.capacity,
+        COUNT(b.id) FILTER (WHERE b.status IN ('booked', 'checked_in')) as booked
+      FROM classes c
+      JOIN class_types ct ON c.class_type_id = ct.id
+      JOIN locations l ON c.location_id = l.id
+      LEFT JOIN bookings b ON b.class_id = c.id
+      WHERE c.teacher_id = $1
+        AND c.date >= CURRENT_DATE
+        AND c.is_cancelled = false
+      GROUP BY c.id, ct.id, l.id
+      ORDER BY c.date, c.start_time
+      LIMIT 10
+    `, [teacher.id]);
+
+    // Get co-op revenue (if co-op teacher)
+    let coopRevenue = null;
+    if (teacher.is_coop_teacher || teacher.coop_tier) {
+      const revenueResult = await db.query(`
+        SELECT
+          SUM(cb.final_price) FILTER (WHERE cb.payment_status = 'paid') as total_revenue,
+          COUNT(cb.id) as total_bookings,
+          COUNT(cb.id) FILTER (WHERE cb.used_coop_credit = true) as credit_bookings
+        FROM coop_bookings cb
+        JOIN classes c ON cb.class_id = c.id
+        WHERE c.teacher_id = $1
+          AND c.date BETWEEN $2 AND $3
+      `, [teacher.id, startDate, endDate]);
+      coopRevenue = revenueResult.rows[0];
+    }
+
+    // Get class breakdown by type
+    const byClassType = await db.query(`
+      SELECT
+        ct.name as class_type,
+        COUNT(DISTINCT c.id) as classes,
+        COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as students
+      FROM classes c
+      JOIN class_types ct ON c.class_type_id = ct.id
+      LEFT JOIN bookings b ON b.class_id = c.id
+      WHERE c.teacher_id = $1
+        AND c.date BETWEEN $2 AND $3
+        AND c.is_cancelled = false
+      GROUP BY ct.id
+      ORDER BY classes DESC
+    `, [teacher.id, startDate, endDate]);
+
+    res.json({
+      period: { start_date: startDate, end_date: endDate },
+      is_coop_teacher: teacher.is_coop_teacher || !!teacher.coop_tier,
+      coop_tier: teacher.coop_tier,
+      summary: classStats.rows[0],
+      upcoming_classes: upcomingClasses.rows,
+      by_class_type: byClassType.rows,
+      coop_revenue: coopRevenue,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// TEACHER STATS (Staff view)
 // ============================================
 
 router.get('/teachers', requirePermission('report.basic'), async (req, res, next) => {
@@ -417,20 +525,26 @@ const ALLOWED_REPORTS = {
     ORDER BY month DESC
   `,
   'class_popularity': `
-    SELECT ct.name as class_type, ct.category,
+    SELECT ct.name as class_type, ct.category, ct.color,
            COUNT(b.id) as bookings,
            COUNT(DISTINCT c.id) as classes_offered,
-           ROUND(COUNT(b.id)::numeric / NULLIF(COUNT(DISTINCT c.id), 0), 1) as avg_per_class
+           ROUND(COUNT(b.id)::numeric / NULLIF(COUNT(DISTINCT c.id), 0), 1) as avg_per_class,
+           COUNT(DISTINCT c.id) FILTER (WHERE c.class_model IN ('coop_rental', 'monthly_tenant')) as coop_classes,
+           COUNT(DISTINCT c.id) FILTER (WHERE c.class_model = 'traditional' OR c.class_model IS NULL) as traditional_classes
     FROM class_types ct
     LEFT JOIN classes c ON c.class_type_id = ct.id AND c.date >= NOW() - INTERVAL '30 days'
     LEFT JOIN bookings b ON b.class_id = c.id AND b.status IN ('booked', 'checked_in')
     WHERE ct.is_active = true
-    GROUP BY ct.id, ct.name, ct.category
+    GROUP BY ct.id, ct.name, ct.category, ct.color
     ORDER BY bookings DESC
   `,
   'teacher_stats': `
     SELECT t.id, u.first_name, u.last_name, t.title,
+           COALESCE(t.is_coop_teacher, false) as is_coop_teacher,
+           t.coop_tier,
            COUNT(DISTINCT c.id) as classes_taught,
+           COUNT(DISTINCT c.id) FILTER (WHERE c.class_model IN ('coop_rental', 'monthly_tenant')) as coop_classes,
+           COUNT(DISTINCT c.id) FILTER (WHERE c.class_model = 'traditional' OR c.class_model IS NULL) as traditional_classes,
            COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as total_students,
            ROUND(COUNT(b.id)::numeric / NULLIF(COUNT(DISTINCT c.id), 0), 1) as avg_per_class
     FROM teachers t
@@ -438,7 +552,7 @@ const ALLOWED_REPORTS = {
     LEFT JOIN classes c ON c.teacher_id = t.id AND c.date >= NOW() - INTERVAL '30 days' AND c.is_cancelled = false
     LEFT JOIN bookings b ON b.class_id = c.id
     WHERE t.is_active = true
-    GROUP BY t.id, u.first_name, u.last_name, t.title
+    GROUP BY t.id, u.first_name, u.last_name, t.title, t.is_coop_teacher, t.coop_tier
     ORDER BY classes_taught DESC
   `,
   'peak_hours': `
@@ -543,6 +657,82 @@ const ALLOWED_REPORTS = {
       AND um.credits_remaining <= 3
       AND um.credits_remaining > 0
     ORDER BY um.credits_remaining, u.last_name
+  `,
+  // Co-op specific reports
+  'coop_classes': `
+    SELECT
+      c.id, c.date, c.start_time, c.end_time, c.class_model,
+      c.coop_drop_in_price, c.coop_member_price,
+      ct.name as class_name, ct.category,
+      u.first_name as teacher_first, u.last_name as teacher_last, t.title as teacher_title,
+      l.name as location, r.name as room,
+      c.capacity,
+      COUNT(b.id) FILTER (WHERE b.status IN ('booked', 'checked_in')) as booked,
+      COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as attended
+    FROM classes c
+    JOIN class_types ct ON c.class_type_id = ct.id
+    JOIN teachers t ON c.teacher_id = t.id
+    JOIN users u ON t.user_id = u.id
+    JOIN locations l ON c.location_id = l.id
+    LEFT JOIN rooms r ON c.room_id = r.id
+    LEFT JOIN bookings b ON b.class_id = c.id
+    WHERE c.class_model IN ('coop_rental', 'monthly_tenant')
+      AND c.date >= NOW() - INTERVAL '30 days'
+    GROUP BY c.id, ct.id, t.id, u.id, l.id, r.id
+    ORDER BY c.date DESC, c.start_time
+  `,
+  'coop_teacher_stats': `
+    SELECT
+      t.id as teacher_id,
+      u.first_name, u.last_name, t.title,
+      t.coop_tier,
+      COUNT(DISTINCT c.id) as classes_taught,
+      COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as total_students,
+      ROUND(COUNT(b.id)::numeric / NULLIF(COUNT(DISTINCT c.id), 0), 1) as avg_per_class,
+      SUM(c.coop_drop_in_price * (SELECT COUNT(*) FROM coop_bookings cb WHERE cb.class_id = c.id AND cb.payment_status = 'paid')) as estimated_revenue
+    FROM teachers t
+    JOIN users u ON t.user_id = u.id
+    LEFT JOIN classes c ON c.teacher_id = t.id
+      AND c.class_model IN ('coop_rental', 'monthly_tenant')
+      AND c.date >= NOW() - INTERVAL '30 days'
+      AND c.is_cancelled = false
+    LEFT JOIN bookings b ON b.class_id = c.id
+    WHERE t.is_coop_teacher = true OR t.coop_tier IS NOT NULL
+    GROUP BY t.id, u.first_name, u.last_name, t.title, t.coop_tier
+    ORDER BY classes_taught DESC
+  `,
+  'coop_revenue': `
+    SELECT
+      DATE_TRUNC('week', t.created_at)::date as week,
+      COUNT(DISTINCT cb.class_id) as classes,
+      COUNT(cb.id) as bookings,
+      SUM(cb.final_price) FILTER (WHERE cb.payment_status = 'paid') as student_revenue,
+      SUM(rb.rental_price) FILTER (WHERE rb.payment_status = 'paid') as rental_revenue
+    FROM coop_bookings cb
+    LEFT JOIN transactions t ON t.coop_booking_id = cb.id
+    LEFT JOIN classes c ON cb.class_id = c.id
+    LEFT JOIN room_bookings rb ON c.room_booking_id = rb.id
+    WHERE t.created_at >= NOW() - INTERVAL '12 weeks'
+    GROUP BY DATE_TRUNC('week', t.created_at)
+    ORDER BY week DESC
+  `,
+  'coop_room_utilization': `
+    SELECT
+      r.id as room_id,
+      r.name as room_name,
+      l.name as location,
+      r.room_type,
+      COUNT(DISTINCT rb.id) as total_bookings,
+      COUNT(DISTINCT rb.id) FILTER (WHERE rb.status = 'completed') as completed,
+      SUM(rb.rental_price) FILTER (WHERE rb.payment_status = 'paid') as total_revenue,
+      mrc.tenant_name as current_tenant
+    FROM rooms r
+    JOIN locations l ON r.location_id = l.id
+    LEFT JOIN room_bookings rb ON rb.room_id = r.id AND rb.date >= NOW() - INTERVAL '30 days'
+    LEFT JOIN monthly_rental_contracts mrc ON mrc.room_id = r.id AND mrc.status = 'active'
+    WHERE r.available_for_rental = true
+    GROUP BY r.id, r.name, l.name, r.room_type, mrc.tenant_name
+    ORDER BY total_bookings DESC
   `
 };
 
@@ -559,6 +749,11 @@ const REPORT_METADATA = {
   'first_timers': { name: 'First-Time Members', description: 'New members from the past 30 days', category: 'members' },
   'no_shows': { name: 'No-Show Report', description: 'Members with 2+ no-shows in past 30 days', category: 'members' },
   'credits_low': { name: 'Low Credits Alert', description: 'Members with 3 or fewer credits remaining', category: 'members' },
+  // Co-op reports
+  'coop_classes': { name: 'Co-op Classes', description: 'All co-op rental and monthly tenant classes', category: 'coop' },
+  'coop_teacher_stats': { name: 'Co-op Teacher Stats', description: 'Performance metrics for co-op teachers', category: 'coop' },
+  'coop_revenue': { name: 'Co-op Revenue', description: 'Weekly co-op class and rental revenue', category: 'coop' },
+  'coop_room_utilization': { name: 'Room Utilization', description: 'Co-op room booking and revenue stats', category: 'coop' },
 };
 
 // List all available reports
