@@ -132,16 +132,19 @@ ON CONFLICT DO NOTHING;
 -- ============================================
 -- CREATE SAMPLE CO-OP CLASSES FOR MORAN
 -- 3-4 co-op classes every day for variety
+-- Co-op teachers can teach regular yoga classes too!
 -- ============================================
 
 DO $$
 DECLARE
   loc_moran UUID;
+  loc_main UUID;
   room_small UUID;
   room_large UUID;
   teacher_luna UUID;
   teacher_kai UUID;
   teacher_maya UUID;
+  -- Specialty co-op class types (purple)
   ct_breathwork UUID;
   ct_soundbath UUID;
   ct_ecstatic UUID;
@@ -152,12 +155,21 @@ DECLARE
   ct_cacao UUID;
   ct_pilates UUID;
   ct_acro UUID;
+  -- Regular yoga class types (co-op teachers can teach these too!)
+  ct_yin UUID;
+  ct_vinyasa UUID;
+  ct_flow UUID;
+  ct_restorative UUID;
+  ct_beginner UUID;
   check_date DATE := CURRENT_DATE;
   end_date DATE := CURRENT_DATE + INTERVAL '21 days';
   day_of_week INT;
 BEGIN
-  -- Get location and rooms
+  -- Get locations
   SELECT id INTO loc_moran FROM locations WHERE short_name = 'Moran St';
+  SELECT id INTO loc_main FROM locations WHERE short_name = 'S. Virginia';
+
+  -- Get rooms at Moran
   SELECT r.id INTO room_small FROM rooms r JOIN locations l ON r.location_id = l.id
     WHERE l.short_name = 'Moran St' AND r.room_type = 'yoga_small';
   SELECT r.id INTO room_large FROM rooms r JOIN locations l ON r.location_id = l.id
@@ -168,7 +180,7 @@ BEGIN
   SELECT t.id INTO teacher_kai FROM teachers t JOIN users u ON t.user_id = u.id WHERE u.email = 'kai@soundalchemy.com';
   SELECT t.id INTO teacher_maya FROM teachers t JOIN users u ON t.user_id = u.id WHERE u.email = 'maya@movementmedicine.co';
 
-  -- Get all class types
+  -- Get specialty co-op class types (purple)
   SELECT id INTO ct_breathwork FROM class_types WHERE name = 'Breathwork Journey';
   SELECT id INTO ct_soundbath FROM class_types WHERE name = 'Sound Bath Meditation';
   SELECT id INTO ct_ecstatic FROM class_types WHERE name = 'Ecstatic Dance';
@@ -179,6 +191,13 @@ BEGIN
   SELECT id INTO ct_cacao FROM class_types WHERE name = 'Cacao Ceremony';
   SELECT id INTO ct_pilates FROM class_types WHERE name = 'Pilates Mat';
   SELECT id INTO ct_acro FROM class_types WHERE name = 'Acro Yoga';
+
+  -- Get regular yoga class types (co-op teachers teach these under co-op pricing!)
+  SELECT id INTO ct_yin FROM class_types WHERE name = 'Yin Yoga';
+  SELECT id INTO ct_vinyasa FROM class_types WHERE name = 'Vinyasa Flow';
+  SELECT id INTO ct_flow FROM class_types WHERE name = 'Gentle Flow';
+  SELECT id INTO ct_restorative FROM class_types WHERE name = 'Restorative';
+  SELECT id INTO ct_beginner FROM class_types WHERE name = 'Beginners Yoga';
 
   -- Only proceed if we have the required data
   IF loc_moran IS NULL OR ct_breathwork IS NULL THEN
@@ -300,6 +319,63 @@ BEGIN
                           class_model, coop_drop_in_price, coop_member_price)
       VALUES (ct_cacao, teacher_luna, loc_moran, room_small, check_date, '19:30', '21:00', 20,
               'monthly_tenant', 40.00, 30.00)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- ========== CO-OP TEACHERS TEACHING REGULAR YOGA (under co-op pricing) ==========
+    -- This is the entrepreneurial model - same class types as traditional, but co-op pricing
+
+    -- Maya's Yin Yoga - Mon/Wed/Fri at 10:30am (co-op rental at Moran)
+    IF day_of_week IN (1, 3, 5) AND teacher_maya IS NOT NULL AND ct_yin IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_yin, teacher_maya, loc_moran, room_large, check_date, '10:30', '11:45', 20,
+              'coop_rental', 28.00, 21.00)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Luna's Gentle Flow - Tue/Thu at 10am (monthly tenant at Moran)
+    IF day_of_week IN (2, 4) AND ct_flow IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_flow, teacher_luna, loc_moran, room_small, check_date, '10:00', '11:15', 15,
+              'monthly_tenant', 26.00, 19.50)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Maya's Vinyasa Flow - Sat/Sun at 8am (co-op rental at Moran) - weekend mornings
+    IF day_of_week IN (0, 6) AND teacher_maya IS NOT NULL AND ct_vinyasa IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_vinyasa, teacher_maya, loc_moran, room_large, check_date, '08:00', '09:15', 22,
+              'coop_rental', 30.00, 22.50)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Luna's Restorative - Sun at 6pm (monthly tenant at Moran)
+    IF day_of_week = 0 AND ct_restorative IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_restorative, teacher_luna, loc_moran, room_small, check_date, '18:00', '19:15', 12,
+              'monthly_tenant', 28.00, 21.00)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Kai's Beginner Yoga - Sat at 11am (co-op rental at Moran) - accessible entry point
+    IF day_of_week = 6 AND teacher_kai IS NOT NULL AND ct_beginner IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_beginner, teacher_kai, loc_moran, room_large, check_date, '11:00', '12:00', 18,
+              'coop_rental', 22.00, 16.50)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Maya's Evening Yin - Tue/Thu at 7:30pm (co-op rental at Moran)
+    IF day_of_week IN (2, 4) AND teacher_maya IS NOT NULL AND ct_yin IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_yin, teacher_maya, loc_moran, room_large, check_date, '19:30', '20:45', 20,
+              'coop_rental', 28.00, 21.00)
       ON CONFLICT DO NOTHING;
     END IF;
 
