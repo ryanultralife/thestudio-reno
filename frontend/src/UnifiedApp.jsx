@@ -204,6 +204,7 @@ function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [filter, setFilter] = useState('all'); // 'all', 'traditional', 'coop'
+  const [locationFilter, setLocationFilter] = useState('all'); // 'all', 'moran', 'virginia'
 
   useEffect(() => {
     const load = async () => {
@@ -224,69 +225,100 @@ function SchedulePage() {
 
   const shiftWeek = (dir) => { const d = new Date(selectedDate); d.setDate(d.getDate() + dir * 7); setSelectedDate(d); };
 
+  // Filter classes by location
+  const filterByLocation = (classes) => {
+    if (locationFilter === 'all') return classes;
+    return classes.filter(cls => {
+      if (locationFilter === 'moran') return cls.location_short?.includes('Moran');
+      if (locationFilter === 'virginia') return cls.location_short?.includes('Virginia');
+      return true;
+    });
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Class Schedule</h1>
-        <div className="flex items-center gap-4">
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            {[['all', 'All Classes'], ['traditional', 'Traditional'], ['coop', 'Co-op']].map(([key, label]) => (
-              <button key={key} onClick={() => setFilter(key)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${filter === key ? (key === 'coop' ? 'bg-purple-600 text-white' : 'bg-white shadow text-gray-900') : 'text-gray-600 hover:text-gray-900'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => shiftWeek(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronLeft /></button>
-            <span className="text-sm font-medium text-gray-700">
-              {formatDate(selectedDate, { month: 'short', day: 'numeric' })} - {formatDate(new Date(selectedDate.getTime() + 6 * 86400000), { month: 'short', day: 'numeric' })}
-            </span>
-            <button onClick={() => shiftWeek(1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronRight /></button>
-          </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => shiftWeek(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronLeft /></button>
+          <span className="text-sm font-medium text-gray-700">
+            {formatDate(selectedDate, { month: 'short', day: 'numeric' })} - {formatDate(new Date(selectedDate.getTime() + 6 * 86400000), { month: 'short', day: 'numeric' })}
+          </span>
+          <button onClick={() => shiftWeek(1)} className="p-2 hover:bg-gray-100 rounded-lg"><Icons.ChevronRight /></button>
         </div>
       </div>
+
+      {/* Filters row */}
+      <div className="flex flex-wrap gap-4">
+        {/* Location filter */}
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          {[['all', 'All Locations'], ['virginia', 'S. Virginia'], ['moran', 'Moran St']].map(([key, label]) => (
+            <button key={key} onClick={() => setLocationFilter(key)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition flex items-center gap-1.5 ${locationFilter === key ? 'bg-white shadow text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}>
+              <Icons.Location className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Class type filter */}
+        <div className="flex bg-gray-100 rounded-lg p-1">
+          {[['all', 'All Classes'], ['traditional', 'Traditional'], ['coop', 'Co-op']].map(([key, label]) => (
+            <button key={key} onClick={() => setFilter(key)} className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${filter === key ? (key === 'coop' ? 'bg-purple-600 text-white' : 'bg-white shadow text-gray-900') : 'text-gray-600 hover:text-gray-900'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className={`${cardClass} overflow-hidden`}>
         {schedule.length === 0 ? <p className="px-6 py-12 text-center text-gray-500">No classes scheduled</p> :
-          schedule.map((day, i) => (
-            <div key={i}>
-              <div className="bg-gray-50 px-6 py-3 border-b"><h3 className="font-semibold text-gray-900">{formatDate(day.date, { weekday: 'long', month: 'long', day: 'numeric' })}</h3></div>
-              <div className="divide-y">
-                {day.classes?.map((cls, j) => (
-                  <div key={j} className={`px-6 py-4 flex items-center justify-between hover:bg-gray-50 ${cls.is_coop ? 'border-l-4 border-purple-500' : ''}`}>
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-gray-500 w-20">{cls.start_time?.slice(0, 5)}</div>
-                      <div className="flex items-center gap-2">
-                        {cls.class_color && <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cls.class_color }} />}
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-gray-900">{cls.class_name}</p>
-                            {cls.is_coop && <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">Co-op</span>}
-                          </div>
-                          <p className="text-sm text-gray-500">
-                            {cls.teacher_name}{cls.teacher_title ? ` (${cls.teacher_title})` : ''} • {cls.duration} min
-                            {cls.location_short && ` • ${cls.location_short}`}
-                          </p>
-                          {cls.is_coop && cls.coop_drop_in_price && (
-                            <p className="text-sm text-purple-600 mt-1">
-                              Drop-in: ${cls.coop_drop_in_price} | Member: ${cls.coop_member_price}
+          schedule.map((day, i) => {
+            const filteredClasses = filterByLocation(day.classes || []);
+            if (filteredClasses.length === 0) return null;
+            return (
+              <div key={i}>
+                <div className="bg-gray-50 px-6 py-3 border-b"><h3 className="font-semibold text-gray-900">{formatDate(day.date, { weekday: 'long', month: 'long', day: 'numeric' })}</h3></div>
+                <div className="divide-y">
+                  {filteredClasses.map((cls, j) => (
+                    <div key={j} className={`px-6 py-4 flex items-center justify-between hover:bg-gray-50 ${cls.is_coop ? 'border-l-4 border-purple-500' : ''}`}>
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm text-gray-500 w-16">{cls.start_time?.slice(0, 5)}</div>
+                        <div className="flex items-center gap-2">
+                          {cls.class_color && <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cls.class_color }} />}
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-gray-900">{cls.class_name}</p>
+                              {/* Location badge - always visible */}
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${cls.location_short?.includes('Moran') ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {cls.location_short || 'Studio'}
+                              </span>
+                              {cls.is_coop && <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">Co-op</span>}
+                            </div>
+                            <p className="text-sm text-gray-500">
+                              {cls.teacher_name}{cls.teacher_title ? ` (${cls.teacher_title})` : ''} • {cls.duration} min
                             </p>
-                          )}
+                            {cls.is_coop && cls.coop_drop_in_price && (
+                              <p className="text-sm text-purple-600 mt-1">
+                                Drop-in: ${cls.coop_drop_in_price} | Member: ${cls.coop_member_price}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right"><p className="text-sm font-medium">{cls.booked || 0}/{cls.capacity}</p></div>
+                        <Button size="sm" variant={cls.is_coop ? 'outline' : 'primary'} disabled={(cls.booked || 0) >= cls.capacity} className={cls.is_coop ? 'border-purple-500 text-purple-600 hover:bg-purple-50' : ''}>
+                          {(cls.booked || 0) >= cls.capacity ? 'Full' : 'Book'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right"><p className="text-sm font-medium">{cls.booked || 0}/{cls.capacity}</p></div>
-                      <Button size="sm" variant={cls.is_coop ? 'outline' : 'primary'} disabled={(cls.booked || 0) >= cls.capacity} className={cls.is_coop ? 'border-purple-500 text-purple-600 hover:bg-purple-50' : ''}>
-                        {(cls.booked || 0) >= cls.capacity ? 'Full' : 'Book'}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
       </div>
     </div>
   );
