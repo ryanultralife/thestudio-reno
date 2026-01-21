@@ -315,8 +315,193 @@ function ProfilePage() {
   );
 }
 
-const ROUTES = { '/': HomePage, '/schedule': SchedulePage, '/my-classes': MyClassesPage, '/membership': MembershipPage, '/profile': ProfilePage };
-const PAGE_IDS = { '/': 'home', '/schedule': 'schedule', '/my-classes': 'my-classes', '/membership': 'membership', '/profile': 'profile', '/staff/dashboard': 'dashboard' };
+function ReportsPage() {
+  const [reports, setReports] = useState({ reports: [], by_category: {} });
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [runningReport, setRunningReport] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('all');
+
+  useEffect(() => {
+    const loadReports = async () => {
+      try {
+        const data = await api('/reports/available');
+        setReports(data);
+      } catch (err) {
+        console.error('Failed to load reports:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadReports();
+  }, []);
+
+  const runReport = async (reportId) => {
+    setRunningReport(true);
+    setSelectedReport(reportId);
+    try {
+      const data = await api(`/reports/run/${reportId}`);
+      setReportData(data);
+    } catch (err) {
+      console.error('Failed to run report:', err);
+      setReportData({ error: err.message, rows: [] });
+    } finally {
+      setRunningReport(false);
+    }
+  };
+
+  const categories = [
+    { id: 'all', label: 'All Reports', color: 'gray' },
+    { id: 'classes', label: 'Classes', color: 'blue' },
+    { id: 'members', label: 'Members', color: 'green' },
+    { id: 'financial', label: 'Financial', color: 'amber' },
+    { id: 'coop', label: 'Co-op', color: 'purple' },
+  ];
+
+  const filteredReports = activeCategory === 'all'
+    ? reports.reports
+    : reports.reports?.filter(r => r.category === activeCategory) || [];
+
+  if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+          <p className="text-gray-500">View business metrics and analytics</p>
+        </div>
+        {selectedReport && (
+          <Button variant="secondary" onClick={() => { setSelectedReport(null); setReportData(null); }}>
+            <Icons.ChevronLeft className="w-4 h-4 mr-1" /> Back to Reports
+          </Button>
+        )}
+      </div>
+
+      {!selectedReport ? (
+        <>
+          <div className="flex gap-2 flex-wrap">
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  activeCategory === cat.id
+                    ? cat.id === 'coop' ? 'bg-purple-600 text-white' : 'bg-gray-900 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredReports.length === 0 ? (
+              <div className={`${cardClass} p-8 col-span-full text-center`}>
+                <p className="text-gray-500">No reports available in this category</p>
+              </div>
+            ) : (
+              filteredReports.map(report => (
+                <button
+                  key={report.id}
+                  onClick={() => runReport(report.id)}
+                  className={`${cardClass} p-6 text-left hover:shadow-md transition border-l-4 ${
+                    report.category === 'coop' ? 'border-purple-500' :
+                    report.category === 'financial' ? 'border-amber-500' :
+                    report.category === 'members' ? 'border-green-500' :
+                    report.category === 'classes' ? 'border-blue-500' : 'border-gray-300'
+                  }`}
+                >
+                  <h3 className="font-semibold text-gray-900 mb-1">{report.name}</h3>
+                  <p className="text-sm text-gray-500">{report.description}</p>
+                  <span className={`inline-block mt-3 px-2 py-1 text-xs font-medium rounded-full ${
+                    report.category === 'coop' ? 'bg-purple-100 text-purple-700' :
+                    report.category === 'financial' ? 'bg-amber-100 text-amber-700' :
+                    report.category === 'members' ? 'bg-green-100 text-green-700' :
+                    report.category === 'classes' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {report.category}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      ) : (
+        <div className={cardClass}>
+          <div className="px-6 py-4 border-b flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-gray-900">{reportData?.name || selectedReport}</h2>
+              <p className="text-sm text-gray-500">{reportData?.description}</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-500">
+                {reportData?.rowCount || 0} rows • Generated {reportData?.generated_at ? formatDate(reportData.generated_at, { hour: 'numeric', minute: '2-digit' }) : 'now'}
+              </span>
+              <Button variant="secondary" size="sm" onClick={() => runReport(selectedReport)}>
+                <Icons.Refresh className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {runningReport ? (
+            <div className="flex items-center justify-center py-12"><Spinner /></div>
+          ) : reportData?.error ? (
+            <div className="p-6 text-center">
+              <p className="text-red-600">{reportData.error}</p>
+            </div>
+          ) : reportData?.rows?.length === 0 ? (
+            <div className="p-12 text-center">
+              <Icons.Chart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-1">No Data Yet</h3>
+              <p className="text-gray-500">This report has no data for the selected period.<br />Data will appear here once there are matching records.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {reportData?.fields?.map((field, i) => (
+                      <th key={i} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        {field.replace(/_/g, ' ')}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {reportData?.rows?.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      {reportData?.fields?.map((field, j) => (
+                        <td key={j} className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                          {row[field] === null || row[field] === undefined ? (
+                            <span className="text-gray-400">—</span>
+                          ) : typeof row[field] === 'number' ? (
+                            field.includes('price') || field.includes('revenue') || field.includes('rate') || field.includes('total')
+                              ? `$${Number(row[field]).toFixed(2)}`
+                              : row[field]
+                          ) : typeof row[field] === 'boolean' ? (
+                            row[field] ? <span className="text-green-600">Yes</span> : <span className="text-gray-400">No</span>
+                          ) : (
+                            String(row[field])
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const ROUTES = { '/': HomePage, '/schedule': SchedulePage, '/my-classes': MyClassesPage, '/membership': MembershipPage, '/profile': ProfilePage, '/staff/reports': ReportsPage, '/staff/dashboard': HomePage };
+const PAGE_IDS = { '/': 'home', '/schedule': 'schedule', '/my-classes': 'my-classes', '/membership': 'membership', '/profile': 'profile', '/staff/dashboard': 'dashboard', '/staff/reports': 'reports' };
 
 function AppContent() {
   const { isAuthenticated, isStaff, loading } = useAuth();
@@ -335,7 +520,9 @@ function AppContent() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Spinner /></div>;
 
-  const Page = path.startsWith('/staff/') ? (isStaff ? HomePage : () => <div className="text-center py-12"><h2 className="text-xl font-semibold">Access Denied</h2></div>) : ROUTES[path] || HomePage;
+  const Page = path.startsWith('/staff/')
+    ? (isStaff ? (ROUTES[path] || HomePage) : () => <div className="text-center py-12"><h2 className="text-xl font-semibold">Access Denied</h2></div>)
+    : ROUTES[path] || HomePage;
 
   return (
     <>
