@@ -785,13 +785,24 @@ router.get('/run/:report_id', requirePermission('report.basic'), async (req, res
       });
     }
 
-    // Check if financial report requires higher permission
+    // Check category-specific permissions
     const meta = REPORT_METADATA[report_id];
+
+    // Financial reports require report.financial permission or manager+ role
     if (meta?.category === 'financial') {
       const hasFinancial = req.user.permissions?.includes('report.financial') ||
         ['manager', 'owner', 'admin'].includes(req.user.role);
       if (!hasFinancial) {
         return res.status(403).json({ error: 'Financial report permission required' });
+      }
+    }
+
+    // Co-op reports require coop.manage permission or manager+ role
+    if (meta?.category === 'coop') {
+      const hasCoop = req.user.permissions?.includes('coop.manage') ||
+        ['manager', 'owner', 'admin'].includes(req.user.role);
+      if (!hasCoop) {
+        return res.status(403).json({ error: 'Co-op management permission required' });
       }
     }
 
