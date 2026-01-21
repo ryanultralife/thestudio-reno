@@ -12,7 +12,8 @@
     "db:cms": "node run-sql.js database/cms-schema.sql",
     "db:coop": "node run-sql.js database/coop-schema.sql",
     "db:seed": "node run-sql.js database/seed.sql",
-    "db:coop-seed": "node run-sql.js database/coop-seed.sql"
+    "db:coop-seed": "node run-sql.js database/coop-seed.sql",
+    "db:class-types": "node run-sql.js database/class-types-update.sql"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
