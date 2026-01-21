@@ -733,6 +733,26 @@ const ALLOWED_REPORTS = {
     WHERE r.available_for_rental = true
     GROUP BY r.id, r.name, l.name, r.room_type, mrc.tenant_name
     ORDER BY total_bookings DESC
+  `,
+  'coop_teachers': `
+    SELECT
+      t.id as teacher_id,
+      u.first_name,
+      u.last_name,
+      u.email,
+      u.phone,
+      t.title,
+      t.coop_tier,
+      t.specialties,
+      t.is_active,
+      u.created_at as joined,
+      (SELECT COUNT(*) FROM classes c WHERE c.teacher_id = t.id AND c.class_model IN ('coop_rental', 'monthly_tenant')) as total_coop_classes,
+      (SELECT COUNT(*) FROM classes c WHERE c.teacher_id = t.id AND c.class_model IN ('coop_rental', 'monthly_tenant') AND c.date >= CURRENT_DATE) as upcoming_classes,
+      (SELECT MAX(c.date) FROM classes c WHERE c.teacher_id = t.id AND c.class_model IN ('coop_rental', 'monthly_tenant')) as last_class_date
+    FROM teachers t
+    JOIN users u ON t.user_id = u.id
+    WHERE t.is_coop_teacher = true OR t.coop_tier IS NOT NULL
+    ORDER BY u.last_name, u.first_name
   `
 };
 
@@ -750,6 +770,7 @@ const REPORT_METADATA = {
   'no_shows': { name: 'No-Show Report', description: 'Members with 2+ no-shows in past 30 days', category: 'members' },
   'credits_low': { name: 'Low Credits Alert', description: 'Members with 3 or fewer credits remaining', category: 'members' },
   // Co-op reports
+  'coop_teachers': { name: 'Co-op Teachers', description: 'All teachers in the co-op model with contact info and class counts', category: 'coop' },
   'coop_classes': { name: 'Co-op Classes', description: 'All co-op rental and monthly tenant classes', category: 'coop' },
   'coop_teacher_stats': { name: 'Co-op Teacher Stats', description: 'Performance metrics for co-op teachers', category: 'coop' },
   'coop_revenue': { name: 'Co-op Revenue', description: 'Weekly co-op class and rental revenue', category: 'coop' },
