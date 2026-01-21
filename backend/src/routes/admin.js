@@ -429,7 +429,7 @@ router.put('/email-templates/:id', requirePermission('settings.edit'), async (re
     const { subject, body_html, body_text, is_active } = req.body;
 
     const result = await db.query(`
-      UPDATE email_templates 
+      UPDATE email_templates
       SET subject = COALESCE($1, subject),
           body_html = COALESCE($2, body_html),
           body_text = COALESCE($3, body_text),
@@ -444,5 +444,11 @@ router.put('/email-templates/:id', requirePermission('settings.edit'), async (re
     next(error);
   }
 });
+
+// ============================================
+// BACKGROUND JOBS
+// ============================================
+
+router.use('/jobs', require('./admin/jobs'));
 
 module.exports = router;
