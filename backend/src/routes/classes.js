@@ -81,24 +81,52 @@ router.get('/schedule', async (req, res, next) => {
 
     const result = await db.query(query, params);
 
+    // Format each class with teacher name
+    const formattedClasses = result.rows.map(cls => ({
+      id: cls.id,
+      date: cls.date,
+      start_time: cls.start_time,
+      end_time: cls.end_time,
+      capacity: cls.capacity,
+      booked: parseInt(cls.booked_count) || 0,
+      spots_left: parseInt(cls.spots_left) || cls.capacity,
+      is_cancelled: cls.is_cancelled,
+      class_type_id: cls.class_type_id,
+      class_name: cls.class_name,
+      duration: cls.duration,
+      category: cls.category,
+      is_heated: cls.is_heated,
+      level: cls.level,
+      location_id: cls.location_id,
+      location_name: cls.location_name,
+      teacher_id: cls.teacher_id,
+      teacher_name: cls.sub_first_name
+        ? `${cls.sub_first_name} ${cls.sub_last_name} (sub for ${cls.teacher_first_name})`
+        : `${cls.teacher_first_name} ${cls.teacher_last_name}`,
+      teacher_photo: cls.teacher_photo,
+    }));
+
     // Group by date for easier frontend rendering
     const byDate = {};
-    for (const cls of result.rows) {
-      const dateKey = cls.date.toISOString().split('T')[0];
+    for (const cls of formattedClasses) {
+      const dateKey = cls.date instanceof Date ? cls.date.toISOString().split('T')[0] : cls.date;
       if (!byDate[dateKey]) byDate[dateKey] = [];
-      byDate[dateKey].push({
-        ...cls,
-        teacher: cls.sub_first_name 
-          ? `${cls.sub_first_name} ${cls.sub_last_name} (sub for ${cls.teacher_first_name})`
-          : `${cls.teacher_first_name} ${cls.teacher_last_name}`,
-      });
+      byDate[dateKey].push(cls);
     }
 
-    res.json({ 
+    // Convert to sorted array format that frontend expects
+    const schedule = Object.keys(byDate)
+      .sort()
+      .map(date => ({
+        date,
+        classes: byDate[date].sort((a, b) => a.start_time.localeCompare(b.start_time)),
+      }));
+
+    res.json({
       start_date: startDate,
       end_date: endDate,
-      classes: result.rows,
-      by_date: byDate,
+      schedule,
+      classes: formattedClasses,
     });
   } catch (error) {
     next(error);

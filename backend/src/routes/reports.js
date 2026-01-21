@@ -409,7 +409,7 @@ const ALLOWED_REPORTS = {
   `,
   'revenue_by_month': `
     SELECT DATE_TRUNC('month', created_at) as month,
-           SUM(amount) as total_revenue,
+           SUM(total) as total_revenue,
            COUNT(*) as transaction_count
     FROM transactions
     WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '12 months'
@@ -417,27 +417,205 @@ const ALLOWED_REPORTS = {
     ORDER BY month DESC
   `,
   'class_popularity': `
-    SELECT ct.name as class_type, COUNT(b.id) as bookings,
-           COUNT(DISTINCT c.id) as classes_offered
+    SELECT ct.name as class_type, ct.category,
+           COUNT(b.id) as bookings,
+           COUNT(DISTINCT c.id) as classes_offered,
+           ROUND(COUNT(b.id)::numeric / NULLIF(COUNT(DISTINCT c.id), 0), 1) as avg_per_class
     FROM class_types ct
     LEFT JOIN classes c ON c.class_type_id = ct.id AND c.date >= NOW() - INTERVAL '30 days'
-    LEFT JOIN bookings b ON b.class_id = c.id AND b.status IN ('confirmed', 'attended')
-    GROUP BY ct.id, ct.name
+    LEFT JOIN bookings b ON b.class_id = c.id AND b.status IN ('booked', 'checked_in')
+    WHERE ct.is_active = true
+    GROUP BY ct.id, ct.name, ct.category
     ORDER BY bookings DESC
   `,
   'teacher_stats': `
-    SELECT t.id, u.first_name, u.last_name,
+    SELECT t.id, u.first_name, u.last_name, t.title,
            COUNT(DISTINCT c.id) as classes_taught,
-           COUNT(b.id) as total_students
+           COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as total_students,
+           ROUND(COUNT(b.id)::numeric / NULLIF(COUNT(DISTINCT c.id), 0), 1) as avg_per_class
     FROM teachers t
     JOIN users u ON u.id = t.user_id
-    LEFT JOIN classes c ON c.teacher_id = t.id AND c.date >= NOW() - INTERVAL '30 days'
-    LEFT JOIN bookings b ON b.class_id = c.id AND b.status = 'attended'
+    LEFT JOIN classes c ON c.teacher_id = t.id AND c.date >= NOW() - INTERVAL '30 days' AND c.is_cancelled = false
+    LEFT JOIN bookings b ON b.class_id = c.id
     WHERE t.is_active = true
-    GROUP BY t.id, u.first_name, u.last_name
+    GROUP BY t.id, u.first_name, u.last_name, t.title
     ORDER BY classes_taught DESC
+  `,
+  'peak_hours': `
+    SELECT
+      EXTRACT(HOUR FROM c.start_time) as hour,
+      TO_CHAR(c.start_time, 'HH12:MI AM') as time_label,
+      COUNT(DISTINCT c.id) as classes,
+      COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as total_attendance,
+      ROUND(AVG(
+        CASE WHEN c.capacity > 0
+        THEN (SELECT COUNT(*) FROM bookings WHERE class_id = c.id AND status = 'checked_in')::numeric / c.capacity * 100
+        END
+      ), 1) as avg_fill_rate
+    FROM classes c
+    LEFT JOIN bookings b ON b.class_id = c.id
+    WHERE c.date >= NOW() - INTERVAL '30 days' AND c.is_cancelled = false
+    GROUP BY EXTRACT(HOUR FROM c.start_time), TO_CHAR(c.start_time, 'HH12:MI AM')
+    ORDER BY hour
+  `,
+  'day_of_week_analysis': `
+    SELECT
+      EXTRACT(DOW FROM c.date) as day_num,
+      TO_CHAR(c.date, 'Day') as day_name,
+      COUNT(DISTINCT c.id) as classes,
+      COUNT(b.id) FILTER (WHERE b.status = 'checked_in') as total_attendance,
+      ROUND(AVG(
+        CASE WHEN c.capacity > 0
+        THEN (SELECT COUNT(*) FROM bookings WHERE class_id = c.id AND status = 'checked_in')::numeric / c.capacity * 100
+        END
+      ), 1) as avg_fill_rate
+    FROM classes c
+    LEFT JOIN bookings b ON b.class_id = c.id
+    WHERE c.date >= NOW() - INTERVAL '30 days' AND c.is_cancelled = false
+    GROUP BY EXTRACT(DOW FROM c.date), TO_CHAR(c.date, 'Day')
+    ORDER BY day_num
+  `,
+  'membership_distribution': `
+    SELECT
+      mt.name as membership_type,
+      mt.type as membership_category,
+      mt.price,
+      COUNT(um.id) as active_count,
+      SUM(um.credits_remaining) as total_credits_remaining
+    FROM membership_types mt
+    LEFT JOIN user_memberships um ON um.membership_type_id = mt.id AND um.status = 'active'
+    WHERE mt.is_active = true
+    GROUP BY mt.id, mt.name, mt.type, mt.price
+    ORDER BY active_count DESC
+  `,
+  'revenue_by_payment_method': `
+    SELECT
+      payment_method,
+      COUNT(*) as transactions,
+      SUM(total) as total_revenue,
+      ROUND(AVG(total), 2) as avg_transaction
+    FROM transactions
+    WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '30 days'
+    GROUP BY payment_method
+    ORDER BY total_revenue DESC
+  `,
+  'first_timers': `
+    SELECT
+      u.id, u.first_name, u.last_name, u.email, u.phone,
+      u.created_at as joined,
+      MIN(c.date) as first_class_date,
+      ct.name as first_class_type,
+      COUNT(DISTINCT b.id) as total_classes_booked
+    FROM users u
+    JOIN bookings b ON b.user_id = u.id
+    JOIN classes c ON b.class_id = c.id
+    JOIN class_types ct ON c.class_type_id = ct.id
+    WHERE u.role = 'student'
+      AND u.created_at >= NOW() - INTERVAL '30 days'
+      AND b.status IN ('booked', 'checked_in')
+    GROUP BY u.id, u.first_name, u.last_name, u.email, u.phone, u.created_at, ct.name
+    ORDER BY u.created_at DESC
+  `,
+  'no_shows': `
+    SELECT
+      u.id, u.first_name, u.last_name, u.email,
+      COUNT(*) as no_show_count,
+      MAX(c.date) as last_no_show_date
+    FROM bookings b
+    JOIN users u ON b.user_id = u.id
+    JOIN classes c ON b.class_id = c.id
+    WHERE b.status = 'no_show' AND c.date >= NOW() - INTERVAL '30 days'
+    GROUP BY u.id, u.first_name, u.last_name, u.email
+    HAVING COUNT(*) >= 2
+    ORDER BY no_show_count DESC
+  `,
+  'credits_low': `
+    SELECT
+      u.id, u.first_name, u.last_name, u.email, u.phone,
+      mt.name as membership,
+      um.credits_remaining,
+      um.end_date
+    FROM user_memberships um
+    JOIN users u ON um.user_id = u.id
+    JOIN membership_types mt ON um.membership_type_id = mt.id
+    WHERE um.status = 'active'
+      AND mt.type = 'credits'
+      AND um.credits_remaining <= 3
+      AND um.credits_remaining > 0
+    ORDER BY um.credits_remaining, u.last_name
   `
 };
+
+// Report metadata for frontend display
+const REPORT_METADATA = {
+  'active_members': { name: 'Active Members', description: 'All members with active memberships', category: 'members' },
+  'revenue_by_month': { name: 'Revenue by Month', description: 'Monthly revenue for the past 12 months', category: 'financial' },
+  'class_popularity': { name: 'Class Popularity', description: 'Most popular class types by attendance', category: 'classes' },
+  'teacher_stats': { name: 'Teacher Statistics', description: 'Classes taught and student counts by teacher', category: 'classes' },
+  'peak_hours': { name: 'Peak Hours', description: 'Busiest hours by attendance and fill rate', category: 'classes' },
+  'day_of_week_analysis': { name: 'Day of Week Analysis', description: 'Attendance patterns by day of week', category: 'classes' },
+  'membership_distribution': { name: 'Membership Distribution', description: 'Active memberships by type', category: 'members' },
+  'revenue_by_payment_method': { name: 'Revenue by Payment Method', description: 'Sales breakdown by payment type', category: 'financial' },
+  'first_timers': { name: 'First-Time Members', description: 'New members from the past 30 days', category: 'members' },
+  'no_shows': { name: 'No-Show Report', description: 'Members with 2+ no-shows in past 30 days', category: 'members' },
+  'credits_low': { name: 'Low Credits Alert', description: 'Members with 3 or fewer credits remaining', category: 'members' },
+};
+
+// List all available reports
+router.get('/available', requirePermission('report.basic'), (req, res) => {
+  const reports = Object.entries(REPORT_METADATA).map(([id, meta]) => ({
+    id,
+    ...meta,
+  }));
+
+  // Group by category
+  const byCategory = reports.reduce((acc, r) => {
+    if (!acc[r.category]) acc[r.category] = [];
+    acc[r.category].push(r);
+    return acc;
+  }, {});
+
+  res.json({ reports, by_category: byCategory });
+});
+
+// Run a specific report by ID
+router.get('/run/:report_id', requirePermission('report.basic'), async (req, res, next) => {
+  try {
+    const { report_id } = req.params;
+
+    if (!ALLOWED_REPORTS[report_id]) {
+      return res.status(400).json({
+        error: 'Invalid report',
+        available_reports: Object.keys(ALLOWED_REPORTS)
+      });
+    }
+
+    // Check if financial report requires higher permission
+    const meta = REPORT_METADATA[report_id];
+    if (meta?.category === 'financial') {
+      const hasFinancial = req.user.permissions?.includes('report.financial') ||
+        ['manager', 'owner', 'admin'].includes(req.user.role);
+      if (!hasFinancial) {
+        return res.status(403).json({ error: 'Financial report permission required' });
+      }
+    }
+
+    const result = await db.query(ALLOWED_REPORTS[report_id]);
+
+    res.json({
+      report: report_id,
+      name: meta?.name || report_id,
+      description: meta?.description,
+      rows: result.rows,
+      rowCount: result.rowCount,
+      fields: result.fields?.map(f => f.name),
+      generated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Report error:', error);
+    next(error);
+  }
+});
 
 router.post('/query', requirePermission('report.custom'), async (req, res, next) => {
   try {
