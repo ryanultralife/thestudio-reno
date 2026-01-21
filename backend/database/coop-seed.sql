@@ -131,7 +131,7 @@ ON CONFLICT DO NOTHING;
 
 -- ============================================
 -- CREATE SAMPLE CO-OP CLASSES FOR MORAN
--- These are classes in the upcoming weeks
+-- 3-4 co-op classes every day for variety
 -- ============================================
 
 DO $$
@@ -147,8 +147,14 @@ DECLARE
   ct_ecstatic UUID;
   ct_nidra UUID;
   ct_movement UUID;
+  ct_kundalini UUID;
+  ct_reiki UUID;
+  ct_cacao UUID;
+  ct_pilates UUID;
+  ct_acro UUID;
   check_date DATE := CURRENT_DATE;
-  end_date DATE := CURRENT_DATE + INTERVAL '14 days';
+  end_date DATE := CURRENT_DATE + INTERVAL '21 days';
+  day_of_week INT;
 BEGIN
   -- Get location and rooms
   SELECT id INTO loc_moran FROM locations WHERE short_name = 'Moran St';
@@ -162,12 +168,17 @@ BEGIN
   SELECT t.id INTO teacher_kai FROM teachers t JOIN users u ON t.user_id = u.id WHERE u.email = 'kai@soundalchemy.com';
   SELECT t.id INTO teacher_maya FROM teachers t JOIN users u ON t.user_id = u.id WHERE u.email = 'maya@movementmedicine.co';
 
-  -- Get class types
+  -- Get all class types
   SELECT id INTO ct_breathwork FROM class_types WHERE name = 'Breathwork Journey';
   SELECT id INTO ct_soundbath FROM class_types WHERE name = 'Sound Bath Meditation';
   SELECT id INTO ct_ecstatic FROM class_types WHERE name = 'Ecstatic Dance';
   SELECT id INTO ct_nidra FROM class_types WHERE name = 'Yoga Nidra';
   SELECT id INTO ct_movement FROM class_types WHERE name = 'Movement Medicine';
+  SELECT id INTO ct_kundalini FROM class_types WHERE name = 'Kundalini Awakening';
+  SELECT id INTO ct_reiki FROM class_types WHERE name = 'Reiki Circle';
+  SELECT id INTO ct_cacao FROM class_types WHERE name = 'Cacao Ceremony';
+  SELECT id INTO ct_pilates FROM class_types WHERE name = 'Pilates Mat';
+  SELECT id INTO ct_acro FROM class_types WHERE name = 'Acro Yoga';
 
   -- Only proceed if we have the required data
   IF loc_moran IS NULL OR ct_breathwork IS NULL THEN
@@ -176,34 +187,77 @@ BEGIN
   END IF;
 
   WHILE check_date <= end_date LOOP
-    -- Luna's Breathwork - Tuesdays and Saturdays at 6pm (monthly tenant - Small Room)
-    IF EXTRACT(DOW FROM check_date) = 2 THEN -- Tuesday
+    day_of_week := EXTRACT(DOW FROM check_date);
+
+    -- ========== MORNING CLASSES (9-11am) ==========
+
+    -- Morning Breathwork - Mon/Wed/Fri at 9am (Luna)
+    IF day_of_week IN (1, 3, 5) THEN
       INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
                           class_model, coop_drop_in_price, coop_member_price)
-      VALUES (ct_breathwork, teacher_luna, loc_moran, room_small, check_date, '18:00', '19:15', 15,
+      VALUES (ct_breathwork, teacher_luna, loc_moran, room_small, check_date, '09:00', '10:15', 15,
               'monthly_tenant', 35.00, 26.25)
       ON CONFLICT DO NOTHING;
     END IF;
 
-    IF EXTRACT(DOW FROM check_date) = 6 THEN -- Saturday
+    -- Morning Pilates - Tue/Thu/Sat at 9:30am (Maya)
+    IF day_of_week IN (2, 4, 6) AND teacher_maya IS NOT NULL AND ct_pilates IS NOT NULL THEN
       INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
                           class_model, coop_drop_in_price, coop_member_price)
-      VALUES (ct_breathwork, teacher_luna, loc_moran, room_small, check_date, '17:00', '18:15', 15,
-              'monthly_tenant', 35.00, 26.25)
+      VALUES (ct_pilates, teacher_maya, loc_moran, room_large, check_date, '09:30', '10:30', 15,
+              'coop_rental', 28.00, 21.00)
       ON CONFLICT DO NOTHING;
     END IF;
 
-    -- Kai's Sound Bath - Fridays at 7:30pm (co-op rental - Large Room)
-    IF EXTRACT(DOW FROM check_date) = 5 AND teacher_kai IS NOT NULL THEN -- Friday
+    -- Sunday Morning Sound Bath at 10am (Kai)
+    IF day_of_week = 0 AND teacher_kai IS NOT NULL THEN
       INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
                           class_model, coop_drop_in_price, coop_member_price)
-      VALUES (ct_soundbath, teacher_kai, loc_moran, room_large, check_date, '19:30', '20:30', 20,
+      VALUES (ct_soundbath, teacher_kai, loc_moran, room_large, check_date, '10:00', '11:00', 20,
               'coop_rental', 30.00, 22.50)
       ON CONFLICT DO NOTHING;
     END IF;
 
-    -- Maya's Ecstatic Dance - Sundays at 4pm (co-op rental - Large Room)
-    IF EXTRACT(DOW FROM check_date) = 0 AND teacher_maya IS NOT NULL THEN -- Sunday
+    -- ========== MIDDAY CLASSES (12-2pm) ==========
+
+    -- Yoga Nidra - Daily at 12:30pm (Luna) - great lunch break class
+    INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                        class_model, coop_drop_in_price, coop_member_price)
+    VALUES (ct_nidra, teacher_luna, loc_moran, room_small, check_date, '12:30', '13:30', 12,
+            'monthly_tenant', 25.00, 18.75)
+    ON CONFLICT DO NOTHING;
+
+    -- Reiki Circle - Mon/Wed at 1pm (Kai)
+    IF day_of_week IN (1, 3) AND teacher_kai IS NOT NULL AND ct_reiki IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_reiki, teacher_kai, loc_moran, room_small, check_date, '13:00', '14:00', 12,
+              'coop_rental', 28.00, 21.00)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- ========== AFTERNOON CLASSES (4-6pm) ==========
+
+    -- Movement Medicine - Tue/Thu/Sat at 4pm (Maya)
+    IF day_of_week IN (2, 4, 6) AND teacher_maya IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_movement, teacher_maya, loc_moran, room_large, check_date, '16:00', '17:15', 18,
+              'coop_rental', 30.00, 22.50)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Kundalini - Mon/Wed/Fri at 4:30pm (Luna)
+    IF day_of_week IN (1, 3, 5) AND ct_kundalini IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_kundalini, teacher_luna, loc_moran, room_small, check_date, '16:30', '17:45', 15,
+              'monthly_tenant', 35.00, 26.25)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Sunday Ecstatic Dance at 4pm (Maya)
+    IF day_of_week = 0 AND teacher_maya IS NOT NULL THEN
       INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
                           class_model, coop_drop_in_price, coop_member_price)
       VALUES (ct_ecstatic, teacher_maya, loc_moran, room_large, check_date, '16:00', '17:30', 25,
@@ -211,21 +265,41 @@ BEGIN
       ON CONFLICT DO NOTHING;
     END IF;
 
-    -- Yoga Nidra - Wednesdays at 7pm (Luna, monthly tenant - Small Room)
-    IF EXTRACT(DOW FROM check_date) = 3 THEN -- Wednesday
+    -- ========== EVENING CLASSES (6-9pm) ==========
+
+    -- Evening Breathwork - Tue/Thu at 6pm (Luna)
+    IF day_of_week IN (2, 4) THEN
       INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
                           class_model, coop_drop_in_price, coop_member_price)
-      VALUES (ct_nidra, teacher_luna, loc_moran, room_small, check_date, '19:00', '20:00', 12,
-              'monthly_tenant', 25.00, 18.75)
+      VALUES (ct_breathwork, teacher_luna, loc_moran, room_small, check_date, '18:00', '19:15', 15,
+              'monthly_tenant', 35.00, 26.25)
       ON CONFLICT DO NOTHING;
     END IF;
 
-    -- Movement Medicine - Thursdays at 6pm (Maya, co-op rental - Large Room)
-    IF EXTRACT(DOW FROM check_date) = 4 AND teacher_maya IS NOT NULL THEN -- Thursday
+    -- Sound Bath - Mon/Wed/Fri at 7pm (Kai)
+    IF day_of_week IN (1, 3, 5) AND teacher_kai IS NOT NULL THEN
       INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
                           class_model, coop_drop_in_price, coop_member_price)
-      VALUES (ct_movement, teacher_maya, loc_moran, room_large, check_date, '18:00', '19:15', 18,
+      VALUES (ct_soundbath, teacher_kai, loc_moran, room_large, check_date, '19:00', '20:00', 20,
               'coop_rental', 30.00, 22.50)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Acro Yoga - Sat at 6pm (Maya) - weekend partner class
+    IF day_of_week = 6 AND teacher_maya IS NOT NULL AND ct_acro IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_acro, teacher_maya, loc_moran, room_large, check_date, '18:00', '19:30', 16,
+              'coop_rental', 30.00, 22.50)
+      ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- Cacao Ceremony - Fri/Sat at 7:30pm (Luna) - special weekend event
+    IF day_of_week IN (5, 6) AND ct_cacao IS NOT NULL THEN
+      INSERT INTO classes (class_type_id, teacher_id, location_id, room_id, date, start_time, end_time, capacity,
+                          class_model, coop_drop_in_price, coop_member_price)
+      VALUES (ct_cacao, teacher_luna, loc_moran, room_small, check_date, '19:30', '21:00', 20,
+              'monthly_tenant', 40.00, 30.00)
       ON CONFLICT DO NOTHING;
     END IF;
 
