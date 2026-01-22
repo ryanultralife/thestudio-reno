@@ -6,9 +6,11 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "db:setup": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql",
+    "db:setup": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql && psql $DATABASE_URL -f database/coop-schema.sql",
     "db:seed": "psql $DATABASE_URL -f database/seed.sql",
-    "db:reset": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql && psql $DATABASE_URL -f database/seed.sql"
+    "db:reset": "psql $DATABASE_URL -f database/schema.sql && psql $DATABASE_URL -f database/retail-schema.sql && psql $DATABASE_URL -f database/cms-schema.sql && psql $DATABASE_URL -f database/coop-schema.sql && psql $DATABASE_URL -f database/seed.sql",
+    "db:migrate": "node scripts/migrate.js",
+    "db:migrate:coop": "node scripts/migrate.js coop-schema.sql"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
