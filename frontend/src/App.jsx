@@ -42,6 +42,8 @@ const Icons = {
   Swap: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>,
   Eye: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
   EyeOff: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>,
+  Building: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+  Clock: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
 };
 
 function Modal({ isOpen, onClose, title, children, size = 'md' }) {
@@ -127,6 +129,7 @@ function Sidebar({ user, currentPage, setCurrentPage, onLogout }) {
     { id: 'dashboard', label: 'Dashboard', icon: Icons.Home, roles: ['front_desk', 'teacher', 'manager', 'owner', 'admin'] },
     { id: 'checkin', label: 'Check In', icon: Icons.Check, roles: ['front_desk', 'teacher', 'manager', 'owner', 'admin'] },
     { id: 'schedule', label: 'Schedule', icon: Icons.Calendar, roles: ['front_desk', 'teacher', 'manager', 'owner', 'admin'] },
+    { id: 'coop', label: 'Co-op', icon: Icons.Building, roles: ['teacher', 'manager', 'owner', 'admin'] },
     { id: 'clients', label: 'Clients', icon: Icons.Users, roles: ['front_desk', 'manager', 'owner', 'admin'] },
     { id: 'sell', label: 'Sell', icon: Icons.CreditCard, roles: ['front_desk', 'manager', 'owner', 'admin'] },
     { id: 'subs', label: 'Sub Requests', icon: Icons.Swap, roles: ['teacher', 'manager', 'owner', 'admin'] },
@@ -324,8 +327,9 @@ function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCoopClasses, setShowCoopClasses] = useState(true);
 
-  useEffect(() => { loadSchedule(); }, [currentDate]);
+  useEffect(() => { loadSchedule(); }, [currentDate, showCoopClasses]);
 
   const loadSchedule = async () => {
     setLoading(true);
@@ -334,8 +338,49 @@ function SchedulePage() {
       start.setDate(start.getDate() - start.getDay());
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
-      const d = await api(`/classes/schedule?start_date=${start.toISOString().split('T')[0]}&end_date=${end.toISOString().split('T')[0]}`);
-      setSchedule(d.schedule || []);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+
+      // Fetch regular classes
+      const regularData = await api(`/classes/schedule?start_date=${startStr}&end_date=${endStr}`);
+      const regularSchedule = regularData.schedule || [];
+
+      // Fetch co-op classes if enabled
+      let coopClasses = [];
+      if (showCoopClasses) {
+        try {
+          const coopData = await api(`/coop/classes?start_date=${startStr}&end_date=${endStr}`);
+          coopClasses = (coopData.classes || []).map(c => ({
+            ...c,
+            is_coop: true,
+            class_name: c.class_name || c.title,
+            teacher_name: c.teacher_name || `${c.teacher_first_name || ''} ${c.teacher_last_name || ''}`.trim(),
+            booked: c.booked_count || 0,
+          }));
+        } catch (e) { /* Co-op not enabled */ }
+      }
+
+      // Merge co-op classes into schedule
+      const scheduleMap = {};
+      regularSchedule.forEach(day => { scheduleMap[day.date] = { ...day, classes: [...day.classes] }; });
+
+      coopClasses.forEach(c => {
+        const date = c.date;
+        if (!scheduleMap[date]) {
+          scheduleMap[date] = { date, classes: [] };
+        }
+        scheduleMap[date].classes.push(c);
+      });
+
+      // Sort by date and then by start_time within each day
+      const merged = Object.values(scheduleMap)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(day => ({
+          ...day,
+          classes: day.classes.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+        }));
+
+      setSchedule(merged);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -346,10 +391,16 @@ function SchedulePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
-          <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-amber-600 hover:bg-amber-50 rounded font-medium">Today</button>
-          <button onClick={() => navigate(1)} className="p-2 hover:bg-gray-100 rounded-lg">→</button>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" checked={showCoopClasses} onChange={(e) => setShowCoopClasses(e.target.checked)} className="rounded border-gray-300 text-amber-600 focus:ring-amber-500" />
+            Show Co-op Classes
+          </label>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
+            <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-amber-600 hover:bg-amber-50 rounded font-medium">Today</button>
+            <button onClick={() => navigate(1)} className="p-2 hover:bg-gray-100 rounded-lg">→</button>
+          </div>
         </div>
       </div>
       {loading ? <div className="flex items-center justify-center h-64"><Spinner /></div> : (
@@ -359,12 +410,23 @@ function SchedulePage() {
               <div className="px-6 py-3 bg-gray-50 font-medium text-gray-700">{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
               <div className="divide-y divide-gray-50">
                 {day.classes.map(c => (
-                  <div key={c.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                  <div key={c.id} className={`px-6 py-4 flex items-center justify-between hover:bg-gray-50 ${c.is_coop ? 'bg-purple-50/50' : ''}`}>
                     <div className="flex items-center gap-4">
-                      <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration}min</p></div>
-                      <div><p className="font-medium text-gray-900">{c.class_name}</p><p className="text-sm text-gray-500">{c.teacher_name}</p></div>
+                      <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration || 60}min</p></div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{c.class_name}</p>
+                          {c.is_coop && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">Co-op</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500">{c.teacher_name}</p>
+                        {c.is_coop && c.coop_price && (
+                          <p className="text-xs text-purple-600 font-medium">${parseFloat(c.coop_price).toFixed(0)} drop-in{c.coop_member_price ? ` · $${parseFloat(c.coop_member_price).toFixed(0)} member` : ''}</p>
+                        )}
+                      </div>
                     </div>
-                    <p className={`font-medium ${c.booked >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
+                    <p className={`font-medium ${(c.booked || 0) >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
                   </div>
                 ))}
               </div>
@@ -743,6 +805,456 @@ function ReportsPage() {
   );
 }
 
+// ============================================
+// CO-OP PAGE - Room Rentals & Teacher Dashboard
+// ============================================
+
+function CoopPage() {
+  const { user } = useAuth();
+  const isAdmin = ['manager', 'owner', 'admin'].includes(user?.role);
+  const [activeTab, setActiveTab] = useState('rooms');
+  const [rooms, setRooms] = useState([]);
+  const [tiers, setTiers] = useState([]);
+  const [myClasses, setMyClasses] = useState([]);
+  const [agreements, setAgreements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [bookingForm, setBookingForm] = useState({ classTypeId: '', price: '', title: '', description: '' });
+  const [classTypes, setClassTypes] = useState([]);
+  const [toast, setToast] = useState(null);
+
+  const tabs = [
+    { id: 'rooms', label: 'Rooms & Availability' },
+    { id: 'book', label: 'Book a Class' },
+    { id: 'myclasses', label: 'My Co-op Classes' },
+    { id: 'earnings', label: 'Earnings' },
+    ...(isAdmin ? [
+      { id: 'agreements', label: 'Agreements' },
+      { id: 'admin-tiers', label: 'Rental Tiers' },
+    ] : []),
+  ];
+
+  useEffect(() => { loadData(); }, [activeTab]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'rooms' || activeTab === 'book') {
+        const [roomsData, tiersData, typesData] = await Promise.all([
+          api('/coop/rooms'),
+          api('/coop/tiers'),
+          api('/classes/types'),
+        ]);
+        setRooms(roomsData.rooms || []);
+        setTiers(tiersData.tiers || []);
+        setClassTypes(typesData.class_types || []);
+      } else if (activeTab === 'myclasses') {
+        const data = await api('/coop/classes/my');
+        setMyClasses(data.classes || []);
+      } else if (activeTab === 'agreements' && isAdmin) {
+        const data = await api('/coop/agreements');
+        setAgreements(data.agreements || []);
+      }
+    } catch (err) { console.error('Failed to load co-op data:', err); }
+    finally { setLoading(false); }
+  };
+
+  const handleBookSlot = async () => {
+    if (!selectedSlot || !bookingForm.classTypeId || !bookingForm.price) {
+      setToast({ message: 'Please fill in all required fields', type: 'error' });
+      return;
+    }
+    try {
+      await api('/coop/classes', {
+        method: 'POST',
+        body: JSON.stringify({
+          room_id: selectedSlot.roomId,
+          tier_id: selectedSlot.tierId,
+          date: selectedSlot.date,
+          start_time: selectedSlot.startTime,
+          class_type_id: bookingForm.classTypeId,
+          coop_price: parseFloat(bookingForm.price),
+          title: bookingForm.title,
+          description: bookingForm.description,
+        }),
+      });
+      setToast({ message: 'Co-op class booked successfully!', type: 'success' });
+      setShowBookModal(false);
+      setSelectedSlot(null);
+      setBookingForm({ classTypeId: '', price: '', title: '', description: '' });
+      loadData();
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+  const formatTime = (time) => time ? new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+
+  // Generate available slots for next 7 days
+  const getAvailableSlots = () => {
+    const slots = [];
+    const today = new Date();
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + d);
+      const dayOfWeek = date.getDay();
+      const dateStr = date.toISOString().split('T')[0];
+
+      rooms.filter(r => r.allows_coop).forEach(room => {
+        tiers.filter(t => t.room_id === room.id && t.is_active && t.days_of_week?.includes(dayOfWeek)).forEach(tier => {
+          slots.push({
+            roomId: room.id,
+            roomName: room.name,
+            tierId: tier.id,
+            tierName: tier.name,
+            date: dateStr,
+            dateDisplay: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+            startTime: tier.start_time,
+            endTime: tier.end_time,
+            price: tier.price,
+            suggestedPrice: tier.suggested_class_price,
+            duration: tier.duration_minutes,
+          });
+        });
+      });
+    }
+    return slots.sort((a, b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime));
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Co-op Teaching</h1>
+          <p className="text-gray-500">Rent studio space and teach your own classes</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-4 -mb-px">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition ${activeTab === tab.id ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-64"><Spinner /></div>
+      ) : (
+        <>
+          {/* Rooms & Availability Tab */}
+          {activeTab === 'rooms' && (
+            <div className="grid gap-6 md:grid-cols-2">
+              {rooms.filter(r => r.allows_coop).map(room => (
+                <div key={room.id} className="bg-white rounded-xl shadow-sm p-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Icons.Building className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{room.name}</h3>
+                      <p className="text-sm text-gray-500">Capacity: {room.capacity} students</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Rental Tiers:</p>
+                    {tiers.filter(t => t.room_id === room.id).map(tier => (
+                      <div key={tier.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${tier.name === 'Prime' ? 'bg-amber-100 text-amber-800' : tier.name === 'Standard' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                            {tier.name}
+                          </span>
+                          <span className="text-sm text-gray-600 ml-2">{formatTime(tier.start_time)} - {formatTime(tier.end_time)}</span>
+                        </div>
+                        <span className="font-semibold text-gray-900">{formatCurrency(tier.price)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {rooms.filter(r => r.allows_coop).length === 0 && (
+                <div className="col-span-2 text-center py-12 bg-white rounded-xl">
+                  <Icons.Building className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">No co-op rooms available yet</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Book a Class Tab */}
+          {activeTab === 'book' && (
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b">
+                <h2 className="font-semibold text-gray-900">Available Time Slots</h2>
+                <p className="text-sm text-gray-500">Select a slot to book your co-op class</p>
+              </div>
+              <div className="divide-y max-h-[600px] overflow-y-auto">
+                {getAvailableSlots().map((slot, i) => (
+                  <div key={i} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                    <div className="flex items-center gap-4">
+                      <div className="text-center w-20">
+                        <p className="text-sm font-medium text-gray-900">{slot.dateDisplay}</p>
+                        <p className="text-xs text-gray-500">{formatTime(slot.startTime)}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{slot.roomName}</p>
+                        <p className="text-sm text-gray-500">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mr-2 ${slot.tierName === 'Prime' ? 'bg-amber-100 text-amber-800' : slot.tierName === 'Standard' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                            {slot.tierName}
+                          </span>
+                          {slot.duration} min • Rent: {formatCurrency(slot.price)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">Suggested price</p>
+                        <p className="font-semibold text-gray-900">{formatCurrency(slot.suggestedPrice)}</p>
+                      </div>
+                      <button onClick={() => { setSelectedSlot(slot); setBookingForm({ ...bookingForm, price: slot.suggestedPrice?.toString() || '' }); setShowBookModal(true); }}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm">
+                        Book
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {getAvailableSlots().length === 0 && (
+                  <div className="px-6 py-12 text-center">
+                    <p className="text-gray-500">No available slots. Configure rooms and rental tiers first.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* My Co-op Classes Tab */}
+          {activeTab === 'myclasses' && (
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">My Co-op Classes</h2>
+                <span className="text-sm text-gray-500">{myClasses.length} classes</span>
+              </div>
+              <div className="divide-y">
+                {myClasses.map(cls => (
+                  <div key={cls.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-medium">CO-OP</span>
+                          <h3 className="font-medium text-gray-900">{cls.class_name || cls.title}</h3>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {new Date(cls.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {formatTime(cls.start_time)}
+                        </p>
+                        <p className="text-sm text-gray-500">{cls.room_name} • {cls.booked_count || 0}/{cls.capacity} booked</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">{formatCurrency(cls.coop_price)}</p>
+                        <p className="text-sm text-gray-500">Member: {formatCurrency(cls.coop_member_price)}</p>
+                        <p className="text-xs text-gray-400">Rent: {formatCurrency(cls.coop_rental_fee)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {myClasses.length === 0 && (
+                  <div className="px-6 py-12 text-center">
+                    <Icons.Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">You haven't booked any co-op classes yet</p>
+                    <button onClick={() => setActiveTab('book')} className="mt-4 text-amber-600 hover:text-amber-700 font-medium">
+                      Book your first class →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Earnings Tab */}
+          {activeTab === 'earnings' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <p className="text-sm text-gray-500 mb-1">Total Revenue</p>
+                  <p className="text-3xl font-bold text-gray-900">{formatCurrency(0)}</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <p className="text-sm text-gray-500 mb-1">Total Rental Fees</p>
+                  <p className="text-3xl font-bold text-red-600">-{formatCurrency(0)}</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <p className="text-sm text-gray-500 mb-1">Net Earnings</p>
+                  <p className="text-3xl font-bold text-green-600">{formatCurrency(0)}</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Recent Transactions</h3>
+                <p className="text-gray-500 text-center py-8">No transactions yet. Start teaching co-op classes to see your earnings here.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Admin: Agreements Tab */}
+          {activeTab === 'agreements' && isAdmin && (
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Teacher Agreements</h2>
+                <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm">
+                  + New Agreement
+                </button>
+              </div>
+              <div className="divide-y">
+                {agreements.map(agreement => (
+                  <div key={agreement.id} className="px-6 py-4 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{agreement.teacher_name}</p>
+                      <p className="text-sm text-gray-500">{agreement.agreement_type} • Started {new Date(agreement.start_date).toLocaleDateString()}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${agreement.status === 'active' ? 'bg-green-100 text-green-800' : agreement.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                      {agreement.status}
+                    </span>
+                  </div>
+                ))}
+                {agreements.length === 0 && (
+                  <div className="px-6 py-12 text-center">
+                    <p className="text-gray-500">No teacher agreements yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Admin: Rental Tiers Tab */}
+          {activeTab === 'admin-tiers' && isAdmin && (
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Rental Pricing Tiers</h2>
+                <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm">
+                  + Add Tier
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Suggested</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {tiers.map(tier => {
+                      const room = rooms.find(r => r.id === tier.room_id);
+                      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                      return (
+                        <tr key={tier.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm text-gray-900">{room?.name || 'Unknown'}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${tier.name === 'Prime' ? 'bg-amber-100 text-amber-800' : tier.name === 'Standard' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                              {tier.name}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{formatTime(tier.start_time)} - {formatTime(tier.end_time)}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{tier.days_of_week?.map(d => dayNames[d]).join(', ')}</td>
+                          <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatCurrency(tier.price)}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{formatCurrency(tier.suggested_class_price)}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded text-xs ${tier.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                              {tier.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {tiers.length === 0 && (
+                  <div className="px-6 py-12 text-center">
+                    <p className="text-gray-500">No rental tiers configured yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Book Class Modal */}
+      <Modal isOpen={showBookModal} onClose={() => setShowBookModal(false)} title="Book Co-op Class" size="md">
+        {selectedSlot && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-900">{selectedSlot.roomName}</p>
+                  <p className="text-sm text-gray-500">{selectedSlot.dateDisplay} at {formatTime(selectedSlot.startTime)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Rental Fee</p>
+                  <p className="font-semibold text-gray-900">{formatCurrency(selectedSlot.price)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Class Type *</label>
+              <select value={bookingForm.classTypeId} onChange={(e) => setBookingForm({ ...bookingForm, classTypeId: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                <option value="">Select class type...</option>
+                {classTypes.map(ct => (
+                  <option key={ct.id} value={ct.id}>{ct.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Your Price (Non-member) *</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <input type="number" value={bookingForm.price} onChange={(e) => setBookingForm({ ...bookingForm, price: e.target.value })}
+                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="25.00" step="0.01" />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Members pay 25% less: {formatCurrency(bookingForm.price * 0.75)}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Custom Title (optional)</label>
+              <input type="text" value={bookingForm.title} onChange={(e) => setBookingForm({ ...bookingForm, title: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="e.g., Breathwork Journey" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+              <textarea value={bookingForm.description} onChange={(e) => setBookingForm({ ...bookingForm, description: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" rows={3} placeholder="Describe your class..." />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button onClick={() => setShowBookModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={handleBookSlot} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium">
+                Book Class
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [classTypes, setClassTypes] = useState([]);
@@ -825,6 +1337,7 @@ export default function App() {
       case 'dashboard': return <DashboardPage />;
       case 'checkin': return <CheckInPage />;
       case 'schedule': return <SchedulePage />;
+      case 'coop': return <CoopPage />;
       case 'clients': return <ClientsPage />;
       case 'sell': return <SellPage />;
       case 'subs': return <SubRequestsPage />;
