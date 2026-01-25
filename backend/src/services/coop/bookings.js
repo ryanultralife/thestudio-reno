@@ -103,7 +103,7 @@ async function bookCoopClass(data) {
   let bookingType;
   let amountPaid = 0;
   let creditAllocationId = null;
-  let stripePaymentIntentId = null;
+  // stripePaymentIntentId comes from input data destructuring above
 
   // Determine payment scenario
   if (isMember && useCredit) {

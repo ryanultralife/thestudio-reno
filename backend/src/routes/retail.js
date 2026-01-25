@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../database/connection');
-const { authenticateToken, requirePermission, optionalAuth } = require('../middleware/auth');
+const { authenticate, requirePermission, optionalAuth } = require('../middleware/auth');
 
 // ============================================
 // PUBLIC - PRODUCT CATALOG
@@ -143,7 +143,7 @@ router.get('/products/:slug', async (req, res, next) => {
 // ============================================
 
 // Search products for POS
-router.get('/pos/search', authenticateToken, async (req, res, next) => {
+router.get('/pos/search', authenticate, async (req, res, next) => {
   try {
     const { q } = req.query;
     
@@ -174,7 +174,7 @@ router.get('/pos/search', authenticateToken, async (req, res, next) => {
 });
 
 // Get product by SKU/barcode for POS
-router.get('/pos/sku/:sku', authenticateToken, async (req, res, next) => {
+router.get('/pos/sku/:sku', authenticate, async (req, res, next) => {
   try {
     const { sku } = req.params;
     
@@ -430,7 +430,7 @@ router.post('/orders', optionalAuth, async (req, res, next) => {
 });
 
 // Get order by ID or order number
-router.get('/orders/:identifier', authenticateToken, async (req, res, next) => {
+router.get('/orders/:identifier', authenticate, async (req, res, next) => {
   try {
     const { identifier } = req.params;
     
@@ -455,7 +455,7 @@ router.get('/orders/:identifier', authenticateToken, async (req, res, next) => {
 });
 
 // List orders (staff)
-router.get('/orders', authenticateToken, requirePermission('view_transactions'), async (req, res, next) => {
+router.get('/orders', authenticate, requirePermission('view_transactions'), async (req, res, next) => {
   try {
     const { status, type, start_date, end_date, limit = 50, offset = 0 } = req.query;
     
@@ -508,7 +508,7 @@ router.get('/orders', authenticateToken, requirePermission('view_transactions'),
 // ============================================
 
 // Get inventory levels
-router.get('/inventory', authenticateToken, requirePermission('manage_inventory'), async (req, res, next) => {
+router.get('/inventory', authenticate, requirePermission('manage_inventory'), async (req, res, next) => {
   try {
     const { low_stock, category } = req.query;
     
@@ -542,7 +542,7 @@ router.get('/inventory', authenticateToken, requirePermission('manage_inventory'
 });
 
 // Adjust inventory
-router.post('/inventory/adjust', authenticateToken, requirePermission('manage_inventory'), async (req, res, next) => {
+router.post('/inventory/adjust', authenticate, requirePermission('manage_inventory'), async (req, res, next) => {
   const client = await pool.connect();
   
   try {
@@ -607,7 +607,7 @@ router.post('/inventory/adjust', authenticateToken, requirePermission('manage_in
 // ============================================
 
 // Create product
-router.post('/admin/products', authenticateToken, requirePermission('manage_products'), async (req, res, next) => {
+router.post('/admin/products', authenticate, requirePermission('manage_products'), async (req, res, next) => {
   try {
     const {
       sku, name, description, category_id,
@@ -633,7 +633,7 @@ router.post('/admin/products', authenticateToken, requirePermission('manage_prod
 });
 
 // Update product
-router.put('/admin/products/:id', authenticateToken, requirePermission('manage_products'), async (req, res, next) => {
+router.put('/admin/products/:id', authenticate, requirePermission('manage_products'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -670,7 +670,7 @@ router.put('/admin/products/:id', authenticateToken, requirePermission('manage_p
 });
 
 // Create variant
-router.post('/admin/products/:productId/variants', authenticateToken, requirePermission('manage_products'), async (req, res, next) => {
+router.post('/admin/products/:productId/variants', authenticate, requirePermission('manage_products'), async (req, res, next) => {
   try {
     const { productId } = req.params;
     const { sku, name, size, color, color_hex, retail_price, quantity_on_hand = 0 } = req.body;

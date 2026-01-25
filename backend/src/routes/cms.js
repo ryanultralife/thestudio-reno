@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../database/connection');
-const { authenticateToken, requirePermission } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
 
 // ============================================
 // SITE SETTINGS
@@ -39,7 +39,7 @@ router.get('/settings/:key', async (req, res, next) => {
 });
 
 // Update setting (admin only)
-router.put('/settings/:key', authenticateToken, requirePermission('manage_settings'), async (req, res, next) => {
+router.put('/settings/:key', authenticate, requirePermission('manage_settings'), async (req, res, next) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
@@ -106,7 +106,7 @@ router.get('/content/:page', async (req, res, next) => {
 });
 
 // Get all content blocks (admin)
-router.get('/content', authenticateToken, requirePermission('manage_content'), async (req, res, next) => {
+router.get('/content', authenticate, requirePermission('manage_content'), async (req, res, next) => {
   try {
     const result = await pool.query('SELECT * FROM content_blocks ORDER BY page, sort_order');
     res.json({ blocks: result.rows });
@@ -116,7 +116,7 @@ router.get('/content', authenticateToken, requirePermission('manage_content'), a
 });
 
 // Update content block
-router.put('/content/:id', authenticateToken, requirePermission('manage_content'), async (req, res, next) => {
+router.put('/content/:id', authenticate, requirePermission('manage_content'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { title, subtitle, body, image_url, button_text, button_url, is_active } = req.body;
@@ -143,7 +143,7 @@ router.put('/content/:id', authenticateToken, requirePermission('manage_content'
 });
 
 // Create content block
-router.post('/content', authenticateToken, requirePermission('manage_content'), async (req, res, next) => {
+router.post('/content', authenticate, requirePermission('manage_content'), async (req, res, next) => {
   try {
     const { page, section, title, subtitle, body, image_url, button_text, button_url } = req.body;
     
@@ -216,7 +216,7 @@ router.get('/events/:slug', async (req, res, next) => {
 });
 
 // Create event (admin)
-router.post('/events', authenticateToken, requirePermission('manage_events'), async (req, res, next) => {
+router.post('/events', authenticate, requirePermission('manage_events'), async (req, res, next) => {
   try {
     const {
       title, description, short_description, start_date, start_time, end_time,
@@ -296,7 +296,7 @@ router.post('/events/:id/register', async (req, res, next) => {
 // ============================================
 
 // Get media files
-router.get('/media', authenticateToken, async (req, res, next) => {
+router.get('/media', authenticate, async (req, res, next) => {
   try {
     const { folder, limit = 50, offset = 0 } = req.query;
     
@@ -320,7 +320,7 @@ router.get('/media', authenticateToken, async (req, res, next) => {
 });
 
 // Upload media (creates record - actual upload handled by frontend to Cloudinary)
-router.post('/media', authenticateToken, requirePermission('manage_media'), async (req, res, next) => {
+router.post('/media', authenticate, requirePermission('manage_media'), async (req, res, next) => {
   try {
     const { 
       filename, original_filename, mime_type, file_size,
@@ -342,7 +342,7 @@ router.post('/media', authenticateToken, requirePermission('manage_media'), asyn
 });
 
 // Delete media
-router.delete('/media/:id', authenticateToken, requirePermission('manage_media'), async (req, res, next) => {
+router.delete('/media/:id', authenticate, requirePermission('manage_media'), async (req, res, next) => {
   try {
     await pool.query('DELETE FROM media WHERE id = $1', [req.params.id]);
     res.json({ message: 'Deleted' });
@@ -431,7 +431,7 @@ router.get('/team', async (req, res, next) => {
 });
 
 // Update teacher profile
-router.put('/team/:id', authenticateToken, async (req, res, next) => {
+router.put('/team/:id', authenticate, async (req, res, next) => {
   try {
     const { id } = req.params;
     
@@ -490,7 +490,7 @@ router.get('/display/slides', async (req, res, next) => {
 });
 
 // Get all display slides (admin)
-router.get('/display/slides/all', authenticateToken, requirePermission('manage_content'), async (req, res, next) => {
+router.get('/display/slides/all', authenticate, requirePermission('manage_content'), async (req, res, next) => {
   try {
     const result = await pool.query('SELECT * FROM display_slides ORDER BY sort_order, created_at DESC');
     res.json({ slides: result.rows });
@@ -500,7 +500,7 @@ router.get('/display/slides/all', authenticateToken, requirePermission('manage_c
 });
 
 // Create display slide
-router.post('/display/slides', authenticateToken, requirePermission('manage_content'), async (req, res, next) => {
+router.post('/display/slides', authenticate, requirePermission('manage_content'), async (req, res, next) => {
   try {
     const {
       title, subtitle, body, image_url, background_url,
@@ -526,7 +526,7 @@ router.post('/display/slides', authenticateToken, requirePermission('manage_cont
 });
 
 // Update display slide
-router.put('/display/slides/:id', authenticateToken, requirePermission('manage_content'), async (req, res, next) => {
+router.put('/display/slides/:id', authenticate, requirePermission('manage_content'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const {
@@ -566,7 +566,7 @@ router.put('/display/slides/:id', authenticateToken, requirePermission('manage_c
 });
 
 // Delete display slide
-router.delete('/display/slides/:id', authenticateToken, requirePermission('manage_content'), async (req, res, next) => {
+router.delete('/display/slides/:id', authenticate, requirePermission('manage_content'), async (req, res, next) => {
   try {
     await pool.query('DELETE FROM display_slides WHERE id = $1', [req.params.id]);
     res.json({ message: 'Deleted' });
