@@ -437,17 +437,7 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
       endDate.setDate(endDate.getDate() + 6);
       const res = await fetch(`${API_URL}/classes/schedule?start_date=${startDate.toISOString().split('T')[0]}&end_date=${endDate.toISOString().split('T')[0]}`);
       const data = await res.json();
-      // Transform by_date object to array format with proper field names
-      const byDate = data.by_date || {};
-      const scheduleArray = Object.keys(byDate).sort().map(date => ({
-        date,
-        classes: byDate[date].map(cls => ({
-          ...cls,
-          teacher_name: cls.teacher || `${cls.teacher_first_name || ''} ${cls.teacher_last_name || ''}`.trim(),
-          booked: cls.booked_count || 0,
-        })),
-      }));
-      setSchedule(scheduleArray);
+      setSchedule(data.schedule || []);
     } catch (err) { console.error('Failed to load schedule:', err); }
     finally { setLoading(false); }
   };

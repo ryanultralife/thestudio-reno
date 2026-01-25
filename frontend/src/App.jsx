@@ -173,13 +173,7 @@ function DashboardPage() {
       const today = new Date().toISOString().split('T')[0];
       const [statsData, scheduleData] = await Promise.all([api('/reports/dashboard'), api(`/classes/schedule?start_date=${today}&end_date=${today}`)]);
       setStats(statsData);
-      // Transform classes with proper field names
-      const classes = (scheduleData.classes || []).map(cls => ({
-        ...cls,
-        teacher_name: cls.teacher || `${cls.teacher_first_name || ''} ${cls.teacher_last_name || ''}`.trim(),
-        booked: cls.booked_count || 0,
-      }));
-      setTodaysClasses(classes);
+      setTodaysClasses(scheduleData.schedule?.[0]?.classes || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -245,12 +239,7 @@ function CheckInPage() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const data = await api(`/classes/schedule?start_date=${today}&end_date=${today}`);
-      // Transform classes with proper field names
-      const todaysClasses = (data.classes || []).map(cls => ({
-        ...cls,
-        teacher_name: cls.teacher || `${cls.teacher_first_name || ''} ${cls.teacher_last_name || ''}`.trim(),
-        booked: cls.booked_count || 0,
-      }));
+      const todaysClasses = data.schedule?.[0]?.classes || [];
       setClasses(todaysClasses);
       const now = new Date();
       const currentMin = now.getHours() * 60 + now.getMinutes();
@@ -260,7 +249,7 @@ function CheckInPage() {
     finally { setLoading(false); }
   };
 
-  const loadRoster = async (id) => { try { const d = await api(`/classes/${id}/roster`); setRoster((d.roster || []).map(b => ({ ...b, id: b.booking_id }))); } catch (err) { console.error(err); } };
+  const loadRoster = async (id) => { try { const d = await api(`/classes/${id}/roster`); setRoster(d.bookings || []); } catch (err) { console.error(err); } };
   const handleCheckIn = async (id) => { try { await api(`/bookings/${id}/checkin`, { method: 'POST' }); loadRoster(selectedClass.id); setToast({ message: 'Checked in!', type: 'success' }); } catch (err) { setToast({ message: err.message, type: 'error' }); } };
   const handleUndo = async (id) => { try { await api(`/bookings/${id}/undo-checkin`, { method: 'POST' }); loadRoster(selectedClass.id); setToast({ message: 'Undone', type: 'success' }); } catch (err) { setToast({ message: err.message, type: 'error' }); } };
   const searchQuick = async (q) => { if (q.length < 2) { setQuickResults([]); return; } try { const d = await api(`/users/search?q=${encodeURIComponent(q)}&limit=5`); setQuickResults(d.users || []); } catch (err) {} };
