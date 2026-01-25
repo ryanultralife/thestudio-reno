@@ -327,8 +327,9 @@ function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCoopClasses, setShowCoopClasses] = useState(true);
 
-  useEffect(() => { loadSchedule(); }, [currentDate]);
+  useEffect(() => { loadSchedule(); }, [currentDate, showCoopClasses]);
 
   const loadSchedule = async () => {
     setLoading(true);
@@ -337,8 +338,49 @@ function SchedulePage() {
       start.setDate(start.getDate() - start.getDay());
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
-      const d = await api(`/classes/schedule?start_date=${start.toISOString().split('T')[0]}&end_date=${end.toISOString().split('T')[0]}`);
-      setSchedule(d.schedule || []);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+
+      // Fetch regular classes
+      const regularData = await api(`/classes/schedule?start_date=${startStr}&end_date=${endStr}`);
+      const regularSchedule = regularData.schedule || [];
+
+      // Fetch co-op classes if enabled
+      let coopClasses = [];
+      if (showCoopClasses) {
+        try {
+          const coopData = await api(`/coop/classes?start_date=${startStr}&end_date=${endStr}`);
+          coopClasses = (coopData.classes || []).map(c => ({
+            ...c,
+            is_coop: true,
+            class_name: c.class_name || c.title,
+            teacher_name: c.teacher_name || `${c.teacher_first_name || ''} ${c.teacher_last_name || ''}`.trim(),
+            booked: c.booked_count || 0,
+          }));
+        } catch (e) { /* Co-op not enabled */ }
+      }
+
+      // Merge co-op classes into schedule
+      const scheduleMap = {};
+      regularSchedule.forEach(day => { scheduleMap[day.date] = { ...day, classes: [...day.classes] }; });
+
+      coopClasses.forEach(c => {
+        const date = c.date;
+        if (!scheduleMap[date]) {
+          scheduleMap[date] = { date, classes: [] };
+        }
+        scheduleMap[date].classes.push(c);
+      });
+
+      // Sort by date and then by start_time within each day
+      const merged = Object.values(scheduleMap)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(day => ({
+          ...day,
+          classes: day.classes.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+        }));
+
+      setSchedule(merged);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -349,10 +391,16 @@ function SchedulePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
-          <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-amber-600 hover:bg-amber-50 rounded font-medium">Today</button>
-          <button onClick={() => navigate(1)} className="p-2 hover:bg-gray-100 rounded-lg">→</button>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" checked={showCoopClasses} onChange={(e) => setShowCoopClasses(e.target.checked)} className="rounded border-gray-300 text-amber-600 focus:ring-amber-500" />
+            Show Co-op Classes
+          </label>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
+            <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-amber-600 hover:bg-amber-50 rounded font-medium">Today</button>
+            <button onClick={() => navigate(1)} className="p-2 hover:bg-gray-100 rounded-lg">→</button>
+          </div>
         </div>
       </div>
       {loading ? <div className="flex items-center justify-center h-64"><Spinner /></div> : (
@@ -362,12 +410,23 @@ function SchedulePage() {
               <div className="px-6 py-3 bg-gray-50 font-medium text-gray-700">{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
               <div className="divide-y divide-gray-50">
                 {day.classes.map(c => (
-                  <div key={c.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                  <div key={c.id} className={`px-6 py-4 flex items-center justify-between hover:bg-gray-50 ${c.is_coop ? 'bg-purple-50/50' : ''}`}>
                     <div className="flex items-center gap-4">
-                      <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration}min</p></div>
-                      <div><p className="font-medium text-gray-900">{c.class_name}</p><p className="text-sm text-gray-500">{c.teacher_name}</p></div>
+                      <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration || 60}min</p></div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{c.class_name}</p>
+                          {c.is_coop && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">Co-op</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500">{c.teacher_name}</p>
+                        {c.is_coop && c.coop_price && (
+                          <p className="text-xs text-purple-600 font-medium">${parseFloat(c.coop_price).toFixed(0)} drop-in{c.coop_member_price ? ` · $${parseFloat(c.coop_member_price).toFixed(0)} member` : ''}</p>
+                        )}
+                      </div>
                     </div>
-                    <p className={`font-medium ${c.booked >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
+                    <p className={`font-medium ${(c.booked || 0) >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
                   </div>
                 ))}
               </div>
