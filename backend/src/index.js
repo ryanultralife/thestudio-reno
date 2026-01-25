@@ -87,7 +87,7 @@ app.get('/api/seed-users/:secret', async (req, res) => {
     const teacherUser = await db.query('SELECT id FROM users WHERE email = $1', ['sarah@thestudioreno.com']);
     if (teacherUser.rows[0]) {
       await db.query(`
-        INSERT INTO teachers (user_id, hourly_rate, is_active)
+        INSERT INTO teachers (user_id, default_hourly_rate, is_active)
         VALUES ($1, 50.00, true)
         ON CONFLICT (user_id) DO NOTHING
       `, [teacherUser.rows[0].id]);
