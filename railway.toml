@@ -3,11 +3,11 @@ builder = "nixpacks"
 buildCommand = "cd frontend && npm install && npm run build && cd ../backend && npm install"
 
 [deploy]
-startCommand = "cd backend && npm run db:migrate:coop && npm start"
+startCommand = "cd backend && npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
 [service]
-internalPort = 8080
+internalPort = 3000
