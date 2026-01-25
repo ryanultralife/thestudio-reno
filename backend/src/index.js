@@ -49,6 +49,64 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// One-time seed endpoint (remove after use)
+app.get('/api/seed-users/:secret', async (req, res) => {
+  if (req.params.secret !== 'studio2025seed') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const bcrypt = require('bcryptjs');
+  const db = require('./database/connection');
+
+  try {
+    const adminHash = bcrypt.hashSync('admin123', 10);
+    const teacherHash = bcrypt.hashSync('teacher123', 10);
+
+    // Create admin user
+    await db.query(`
+      INSERT INTO users (email, password_hash, first_name, last_name, role, is_active, email_verified)
+      VALUES ($1, $2, 'Admin', 'User', 'admin', true, true)
+      ON CONFLICT (email) DO UPDATE SET password_hash = $2, role = 'admin'
+    `, ['admin@thestudioreno.com', adminHash]);
+
+    // Create owner user
+    await db.query(`
+      INSERT INTO users (email, password_hash, first_name, last_name, role, is_active, email_verified)
+      VALUES ($1, $2, 'Rachelle', 'Lanning', 'owner', true, true)
+      ON CONFLICT (email) DO UPDATE SET password_hash = $2, role = 'owner'
+    `, ['rachelle@thestudioreno.com', adminHash]);
+
+    // Create teacher user
+    await db.query(`
+      INSERT INTO users (email, password_hash, first_name, last_name, role, is_active, email_verified)
+      VALUES ($1, $2, 'Sarah', 'Teacher', 'teacher', true, true)
+      ON CONFLICT (email) DO UPDATE SET password_hash = $2, role = 'teacher'
+    `, ['sarah@thestudioreno.com', teacherHash]);
+
+    // Create teacher record
+    const teacherUser = await db.query('SELECT id FROM users WHERE email = $1', ['sarah@thestudioreno.com']);
+    if (teacherUser.rows[0]) {
+      await db.query(`
+        INSERT INTO teachers (user_id, hourly_rate, is_active)
+        VALUES ($1, 50.00, true)
+        ON CONFLICT (user_id) DO NOTHING
+      `, [teacherUser.rows[0].id]);
+    }
+
+    res.json({
+      success: true,
+      message: 'Test users created!',
+      users: [
+        { email: 'admin@thestudioreno.com', password: 'admin123', role: 'admin' },
+        { email: 'rachelle@thestudioreno.com', password: 'admin123', role: 'owner' },
+        { email: 'sarah@thestudioreno.com', password: 'teacher123', role: 'teacher' },
+      ]
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/classes', require('./routes/classes'));
