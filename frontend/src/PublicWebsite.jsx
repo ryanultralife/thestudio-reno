@@ -700,6 +700,63 @@ function PricingPage({ onShowAuth }) {
               </div>
             ))}
           </div>
+
+          {/* Co-op Classes Section */}
+          <div className="mt-16 pt-12 border-t border-gray-200">
+            <div className="text-center mb-8">
+              <span className="inline-block px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium mb-4">Guest Teachers</span>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Co-op Classes</h2>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Expand your practice with unique classes from guest teachers. Members get discounted rates and free monthly credits!
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-gray-900 mb-2">Drop-In</h3>
+                  <p className="text-gray-600 text-sm mb-4">No membership needed. Pay per class.</p>
+                  <p className="text-2xl font-bold text-purple-600">$25-40</p>
+                  <p className="text-xs text-gray-500">per class, varies by teacher</p>
+                </div>
+
+                <div className="bg-white rounded-xl p-6 shadow-sm border-2 border-purple-400">
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-gray-900 mb-2">Member Discount</h3>
+                  <p className="text-gray-600 text-sm mb-4">Active members save 25% on all co-op classes.</p>
+                  <p className="text-2xl font-bold text-purple-600">25% OFF</p>
+                  <p className="text-xs text-gray-500">automatic at checkout</p>
+                </div>
+
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-gray-900 mb-2">Monthly Credits</h3>
+                  <p className="text-gray-600 text-sm mb-4">Unlimited members get free co-op credits monthly.</p>
+                  <p className="text-2xl font-bold text-green-600">4 FREE</p>
+                  <p className="text-xs text-gray-500">classes per month</p>
+                </div>
+              </div>
+
+              <div className="mt-8 text-center">
+                <p className="text-purple-700 mb-4">
+                  Co-op classes are marked with a <span className="inline-block px-2 py-0.5 bg-purple-600 text-white text-xs font-bold rounded mx-1">CO-OP</span> badge on the schedule
+                </p>
+              </div>
+            </div>
+          </div>
         </>
       )}
     </div>

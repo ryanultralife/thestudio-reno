@@ -823,10 +823,12 @@ function ReportsPage() {
 function CoopPage() {
   const { user } = useAuth();
   const isAdmin = ['manager', 'owner', 'admin'].includes(user?.role);
+  const isTeacher = user?.role === 'teacher';
   const [activeTab, setActiveTab] = useState('rooms');
   const [rooms, setRooms] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [myClasses, setMyClasses] = useState([]);
+  const [myAgreement, setMyAgreement] = useState(null);
   const [agreements, setAgreements] = useState([]);
   const [earnings, setEarnings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -839,9 +841,11 @@ function CoopPage() {
   const [classTypes, setClassTypes] = useState([]);
   const [toast, setToast] = useState(null);
 
+  const hasActiveAgreement = myAgreement?.status === 'active';
+
   const tabs = [
     { id: 'rooms', label: 'Rooms & Availability' },
-    { id: 'book', label: 'Book a Class' },
+    { id: 'book', label: 'Book a Class', requiresAgreement: true },
     { id: 'myclasses', label: 'My Co-op Classes' },
     { id: 'earnings', label: 'Earnings' },
     ...(isAdmin ? [
@@ -849,6 +853,19 @@ function CoopPage() {
       { id: 'admin-tiers', label: 'Rental Tiers' },
     ] : []),
   ];
+
+  // Load teacher's agreement on mount
+  useEffect(() => {
+    const loadMyAgreement = async () => {
+      if (!isAdmin) {
+        try {
+          const data = await api('/coop/agreements/me');
+          setMyAgreement(data.agreement);
+        } catch { setMyAgreement(null); }
+      }
+    };
+    loadMyAgreement();
+  }, [isAdmin]);
 
   useEffect(() => { loadData(); }, [activeTab]);
 
@@ -977,13 +994,65 @@ function CoopPage() {
         </div>
       </div>
 
+      {/* Agreement Status Banner for Teachers */}
+      {!isAdmin && (
+        <div className={`rounded-lg p-4 ${
+          myAgreement?.status === 'active' ? 'bg-green-50 border border-green-200' :
+          myAgreement?.status === 'pending' ? 'bg-yellow-50 border border-yellow-200' :
+          'bg-purple-50 border border-purple-200'
+        }`}>
+          {myAgreement?.status === 'active' ? (
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <Icons.Check className="text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium text-green-800">Active Co-op Agreement</p>
+                <p className="text-sm text-green-600">You can book studio time and teach your own classes.</p>
+              </div>
+            </div>
+          ) : myAgreement?.status === 'pending' ? (
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Icons.Clock className="text-yellow-600" />
+              </div>
+              <div>
+                <p className="font-medium text-yellow-800">Agreement Pending Approval</p>
+                <p className="text-sm text-yellow-600">Your co-op agreement is being reviewed. You'll be notified when approved.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Icons.Building className="text-purple-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-purple-800">Interested in Teaching?</p>
+                  <p className="text-sm text-purple-600">Contact the studio to set up a co-op teaching agreement.</p>
+                </div>
+              </div>
+              <a href="mailto:hello@thestudioreno.com" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium text-sm">
+                Contact Us
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="flex gap-4 -mb-px">
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition ${activeTab === tab.id ? 'border-amber-500 text-amber-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              disabled={tab.requiresAgreement && !hasActiveAgreement && !isAdmin}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition ${
+                activeTab === tab.id ? 'border-amber-500 text-amber-600' :
+                (tab.requiresAgreement && !hasActiveAgreement && !isAdmin) ? 'border-transparent text-gray-300 cursor-not-allowed' :
+                'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}>
               {tab.label}
+              {tab.requiresAgreement && !hasActiveAgreement && !isAdmin && <span className="ml-1 text-xs">🔒</span>}
             </button>
           ))}
         </nav>

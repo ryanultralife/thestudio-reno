@@ -29,12 +29,14 @@ router.get('/schedule', async (req, res, next) => {
     })();
 
     let query = `
-      SELECT 
+      SELECT
         c.id, c.date, c.start_time, c.end_time, c.capacity, c.is_cancelled,
         c.notes,
-        ct.id as class_type_id, ct.name as class_name, ct.duration, 
+        c.is_coop, c.coop_price, c.coop_member_price, c.coop_status,
+        ct.id as class_type_id, ct.name as class_name, ct.duration,
         ct.category, ct.is_heated, ct.level, ct.description as class_description,
         l.id as location_id, l.name as location_name, l.short_name as location_short,
+        r.name as room_name,
         t.id as teacher_id,
         u.first_name as teacher_first_name, u.last_name as teacher_last_name,
         t.photo_url as teacher_photo,
@@ -45,12 +47,14 @@ router.get('/schedule', async (req, res, next) => {
       FROM classes c
       JOIN class_types ct ON c.class_type_id = ct.id
       JOIN locations l ON c.location_id = l.id
+      LEFT JOIN rooms r ON c.room_id = r.id
       JOIN teachers t ON c.teacher_id = t.id
       JOIN users u ON t.user_id = u.id
       LEFT JOIN teachers sub_t ON c.substitute_teacher_id = sub_t.id
       LEFT JOIN users sub_u ON sub_t.user_id = sub_u.id
       LEFT JOIN bookings b ON b.class_id = c.id
       WHERE c.date BETWEEN $1 AND $2
+        AND c.is_cancelled = false
     `;
 
     const params = [startDate, endDate];
@@ -75,7 +79,7 @@ router.get('/schedule', async (req, res, next) => {
     }
 
     query += `
-      GROUP BY c.id, ct.id, l.id, t.id, u.id, sub_u.first_name, sub_u.last_name
+      GROUP BY c.id, ct.id, l.id, r.id, t.id, u.id, sub_u.first_name, sub_u.last_name
       ORDER BY c.date, c.start_time
     `;
 
