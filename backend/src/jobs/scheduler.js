@@ -5,6 +5,7 @@
 
 const cron = require('node-cron');
 const coopJobs = require('./coop');
+const mindbodyJobs = require('./mindbody');
 
 // Track scheduled jobs
 const scheduledJobs = new Map();
@@ -54,6 +55,52 @@ const jobSchedules = {
     schedule: '0 18 * * *',
     handler: coopJobs.runCoopClassReminders,
     description: 'Send reminders for tomorrow\'s co-op classes',
+  },
+
+  // ============================================
+  // MINDBODY SYNC JOBS
+  // ============================================
+
+  // Daily full sync - Run at 3:00 AM (low-traffic time)
+  'mindbody:daily-sync': {
+    schedule: '0 3 * * *',
+    handler: mindbodyJobs.runDailySync,
+    description: 'Full MindBody data sync (classes, clients, bookings)',
+  },
+
+  // Incremental sync - Run every 4 hours for schedule updates
+  'mindbody:incremental-sync': {
+    schedule: '0 */4 * * *',
+    handler: mindbodyJobs.runIncrementalSync,
+    description: 'Incremental sync of classes and bookings',
+  },
+
+  // Process sync queue - Every 5 minutes
+  'mindbody:process-queue': {
+    schedule: '*/5 * * * *',
+    handler: mindbodyJobs.processSyncQueue,
+    description: 'Process queued sync items from webhooks',
+  },
+
+  // Retry failed webhooks - Every hour at :30
+  'mindbody:retry-webhooks': {
+    schedule: '30 * * * *',
+    handler: mindbodyJobs.retryFailedWebhooks,
+    description: 'Retry failed webhook event processing',
+  },
+
+  // Cleanup old data - Weekly on Sunday at 2:00 AM
+  'mindbody:cleanup': {
+    schedule: '0 2 * * 0',
+    handler: mindbodyJobs.cleanupOldData,
+    description: 'Clean up old sync logs and processed queue items',
+  },
+
+  // Health check - Daily at 10:00 AM
+  'mindbody:health-check': {
+    schedule: '0 10 * * *',
+    handler: mindbodyJobs.checkSyncHealth,
+    description: 'Check MindBody sync health and alert if issues',
   },
 };
 
