@@ -21,6 +21,7 @@ export default function DisplayBoard() {
   const [settings, setSettings] = useState({});
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Load data
   useEffect(() => {
@@ -50,31 +51,36 @@ export default function DisplayBoard() {
 
   const loadData = async () => {
     try {
+      setError(null);
       // Load schedule for today and tomorrow
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-      
-      const [scheduleRes, eventsRes, settingsRes, slidesRes] = await Promise.all([
-        fetch(`${API_URL}/classes/schedule?start_date=${today}&end_date=${tomorrow}`),
-        fetch(`${API_URL}/cms/events?featured=true&limit=5`),
-        fetch(`${API_URL}/cms/settings`),
-        fetch(`${API_URL}/cms/display/slides`)
+
+      // Fetch each endpoint separately to handle individual failures gracefully
+      const fetchJson = async (url) => {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          return await res.json();
+        } catch { return null; }
+      };
+
+      const [scheduleData, eventsData, settingsData, slidesData] = await Promise.all([
+        fetchJson(`${API_URL}/classes/schedule?start_date=${today}&end_date=${tomorrow}`),
+        fetchJson(`${API_URL}/cms/events?featured=true&limit=5`),
+        fetchJson(`${API_URL}/cms/settings`),
+        fetchJson(`${API_URL}/cms/display/slides`)
       ]);
-      
-      const scheduleData = await scheduleRes.json();
-      const eventsData = await eventsRes.json();
-      const settingsData = await settingsRes.json();
-      const slidesData = await slidesRes.json();
-      
-      setSchedule(scheduleData.classes || []);
-      setEvents(eventsData.events || []);
-      setSettings(settingsData.settings || {});
-      
+
+      setSchedule(scheduleData?.classes || []);
+      setEvents(eventsData?.events || []);
+      setSettings(settingsData?.settings || {});
+
       // Build promos from custom slides + settings
       const promoList = [];
-      
+
       // Add custom slides first
-      if (slidesData.slides) {
+      if (slidesData?.slides) {
         slidesData.slides.forEach(slide => {
           promoList.push({
             type: 'custom',
@@ -82,10 +88,10 @@ export default function DisplayBoard() {
           });
         });
       }
-      
+
       // Add default promos from settings if no custom slides
       if (promoList.length === 0) {
-        if (settingsData.settings?.intro_offer?.enabled) {
+        if (settingsData?.settings?.intro_offer?.enabled) {
           promoList.push({
             type: 'intro',
             title: settingsData.settings.intro_offer.title || 'New Student Special',
@@ -93,7 +99,7 @@ export default function DisplayBoard() {
             price: settingsData.settings.intro_offer.price
           });
         }
-        if (settingsData.settings?.tea_lounge?.enabled) {
+        if (settingsData?.settings?.tea_lounge?.enabled) {
           promoList.push({
             type: 'tea',
             title: settingsData.settings.tea_lounge.name,
@@ -103,9 +109,10 @@ export default function DisplayBoard() {
         }
       }
       setPromos(promoList);
-      
+
     } catch (err) {
       console.error('Failed to load display data:', err);
+      setError('Failed to load display data. Retrying...');
     } finally {
       setLoading(false);
     }
@@ -174,6 +181,9 @@ export default function DisplayBoard() {
       </div>
     );
   }
+
+  // Show error banner but continue displaying available content
+  const showError = error && schedule.length === 0 && events.length === 0;
 
   return (
     <div className="min-h-screen bg-brand-900 text-white overflow-hidden">

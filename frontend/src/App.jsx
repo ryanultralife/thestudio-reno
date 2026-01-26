@@ -117,7 +117,6 @@ function LoginPage({ onLogin }) {
           </div>
           <button type="submit" disabled={loading} className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 rounded-lg disabled:opacity-50">{loading ? 'Signing in...' : 'Sign In'}</button>
         </form>
-        <p className="mt-6 text-center text-sm text-gray-500">Test: admin@thestudioreno.com / admin123</p>
       </div>
     </div>
   );

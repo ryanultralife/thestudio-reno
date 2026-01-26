@@ -386,7 +386,7 @@ function Navigation({ currentPage, setCurrentPage, user, onShowAuth, onLogout })
 // FOOTER
 // ============================================
 
-function Footer() {
+function Footer({ setCurrentPage }) {
   return (
     <footer className="bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -398,9 +398,9 @@ function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-2 text-gray-400">
-              <li><a href="#" className="hover:text-white">Schedule</a></li>
-              <li><a href="#" className="hover:text-white">Pricing</a></li>
-              <li><a href="#" className="hover:text-white">New Student Special</a></li>
+              <li><button onClick={() => setCurrentPage('schedule')} className="hover:text-white">Schedule</button></li>
+              <li><button onClick={() => setCurrentPage('pricing')} className="hover:text-white">Pricing</button></li>
+              <li><button onClick={() => setCurrentPage('pricing')} className="hover:text-white">New Student Special</button></li>
             </ul>
           </div>
           <div>
@@ -491,8 +491,8 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
   const loadFilters = async () => {
     try {
       const [typesRes, teachersRes] = await Promise.all([
-        fetch(`${API_URL}/classes/types/list`).then(r => r.json()),
-        fetch(`${API_URL}/classes/teachers/list`).then(r => r.json()),
+        api('/classes/types/list'),
+        api('/classes/teachers/list'),
       ]);
       setClassTypes(typesRes.class_types || []);
       setTeachers(teachersRes.teachers || []);
@@ -506,8 +506,7 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
       startDate.setDate(startDate.getDate() - startDate.getDay());
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 6);
-      const res = await fetch(`${API_URL}/classes/schedule?start_date=${startDate.toISOString().split('T')[0]}&end_date=${endDate.toISOString().split('T')[0]}`);
-      const data = await res.json();
+      const data = await api(`/classes/schedule?start_date=${startDate.toISOString().split('T')[0]}&end_date=${endDate.toISOString().split('T')[0]}`);
       // Transform by_date object to array format with proper field names
       const byDate = data.by_date || {};
       const scheduleArray = Object.keys(byDate).sort().map(date => ({
@@ -653,8 +652,7 @@ function PricingPage({ onShowAuth }) {
 
   const loadMemberships = async () => {
     try {
-      const res = await fetch(`${API_URL}/memberships/types`);
-      const data = await res.json();
+      const data = await api('/memberships/types');
       setMemberships(data.membership_types || []);
     } catch (err) { console.error('Failed to load memberships:', err); }
     finally { setLoading(false); }
@@ -775,8 +773,7 @@ function TeachersPage() {
 
   const loadTeachers = async () => {
     try {
-      const res = await fetch(`${API_URL}/classes/teachers/list`);
-      const data = await res.json();
+      const data = await api('/classes/teachers/list');
       setTeachers(data.teachers || []);
     } catch (err) { console.error('Failed to load teachers:', err); }
     finally { setLoading(false); }
@@ -821,8 +818,7 @@ function ClassesPage() {
 
   const loadClassTypes = async () => {
     try {
-      const res = await fetch(`${API_URL}/classes/types/list`);
-      const data = await res.json();
+      const data = await api('/classes/types/list');
       setClassTypes(data.class_types || []);
     } catch (err) { console.error('Failed to load class types:', err); }
     finally { setLoading(false); }
@@ -881,8 +877,7 @@ function ShopPage({ user, onShowAuth }) {
 
   const loadCategories = async () => {
     try {
-      const res = await fetch(`${API_URL}/retail/categories`);
-      const data = await res.json();
+      const data = await api('/retail/categories');
       setCategories(data.categories || []);
     } catch (err) { console.error('Failed to load categories:', err); }
   };
@@ -890,11 +885,10 @@ function ShopPage({ user, onShowAuth }) {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const url = selectedCategory 
-        ? `${API_URL}/retail/products?category=${selectedCategory}`
-        : `${API_URL}/retail/products`;
-      const res = await fetch(url);
-      const data = await res.json();
+      const endpoint = selectedCategory
+        ? `/retail/products?category=${selectedCategory}`
+        : `/retail/products`;
+      const data = await api(endpoint);
       setProducts(data.products || []);
     } catch (err) { console.error('Failed to load products:', err); }
     finally { setLoading(false); }
@@ -1182,7 +1176,7 @@ function ShopPage({ user, onShowAuth }) {
 // ACCOUNT PAGE
 // ============================================
 
-function AccountPage({ user, onLogout, onUserUpdate }) {
+function AccountPage({ user, onLogout, onUserUpdate, setCurrentPage }) {
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookings, setBookings] = useState([]);
   const [history, setHistory] = useState([]);
@@ -1271,7 +1265,7 @@ function AccountPage({ user, onLogout, onUserUpdate }) {
         ) : (
           <div className="p-4 bg-gray-50 rounded-lg text-center">
             <p className="text-gray-600 mb-3">No active membership</p>
-            <a href="#pricing" className="text-amber-600 font-medium hover:text-amber-700">View membership options →</a>
+            <button onClick={() => setCurrentPage('pricing')} className="text-amber-600 font-medium hover:text-amber-700">View membership options →</button>
           </div>
         )}
       </div>
@@ -1298,7 +1292,7 @@ function AccountPage({ user, onLogout, onUserUpdate }) {
               {bookings.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm p-8 text-center">
                   <p className="text-gray-500 mb-4">No upcoming classes</p>
-                  <a href="#schedule" className="text-amber-600 font-medium hover:text-amber-700">Browse schedule →</a>
+                  <button onClick={() => setCurrentPage('schedule')} className="text-amber-600 font-medium hover:text-amber-700">Browse schedule →</button>
                 </div>
               ) : (
                 bookings.map((booking) => (
@@ -1452,7 +1446,7 @@ export default function PublicWebsite() {
       case 'teachers': return <TeachersPage />;
       case 'pricing': return <PricingPage onShowAuth={handleShowAuth} />;
       case 'shop': return <ShopPage user={user} onShowAuth={handleShowAuth} />;
-      case 'account': return user ? <AccountPage user={user} onLogout={handleLogout} onUserUpdate={setUser} /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
+      case 'account': return user ? <AccountPage user={user} onLogout={handleLogout} onUserUpdate={setUser} setCurrentPage={setCurrentPage} /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
       default: return <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
     }
   };
@@ -1462,7 +1456,7 @@ export default function PublicWebsite() {
       <div className="min-h-screen flex flex-col">
         <Navigation currentPage={currentPage} setCurrentPage={setCurrentPage} user={user} onShowAuth={handleShowAuth} onLogout={handleLogout} />
         <main className="flex-1">{renderPage()}</main>
-        <Footer />
+        <Footer setCurrentPage={setCurrentPage} />
 
         <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} onLogin={setUser} initialMode={authMode} />
         <BookingModal isOpen={!!bookingClass} onClose={() => setBookingClass(null)} classInfo={bookingClass} user={user} onSuccess={handleBookingSuccess} />
