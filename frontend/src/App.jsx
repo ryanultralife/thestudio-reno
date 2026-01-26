@@ -355,11 +355,11 @@ function SchedulePage() {
   const loadFormData = async () => {
     try {
       const [ctRes, tRes, lRes] = await Promise.all([
-        api('/class-types'),
-        api('/teachers'),
-        api('/locations'),
+        api('/classes/types/list'),
+        api('/classes/teachers/list'),
+        api('/classes/locations/list'),
       ]);
-      setClassTypes(ctRes.classTypes || []);
+      setClassTypes(ctRes.class_types || []);
       setTeachers(tRes.teachers || []);
       setLocations(lRes.locations || []);
     } catch (err) { console.error('Failed to load form data:', err); }
