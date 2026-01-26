@@ -334,12 +334,36 @@ function CheckInPage() {
 }
 
 function SchedulePage() {
+  const { user } = useAuth();
+  const canManage = ['manager', 'owner', 'admin'].includes(user?.role);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCoopClasses, setShowCoopClasses] = useState(true);
+  const [showAddClass, setShowAddClass] = useState(false);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [showEditClass, setShowEditClass] = useState(false);
+  const [showCancelClass, setShowCancelClass] = useState(false);
+  const [classTypes, setClassTypes] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => { loadSchedule(); }, [currentDate, showCoopClasses]);
+  useEffect(() => { if (canManage) loadFormData(); }, [canManage]);
+
+  const loadFormData = async () => {
+    try {
+      const [ctRes, tRes, lRes] = await Promise.all([
+        api('/class-types'),
+        api('/teachers'),
+        api('/locations'),
+      ]);
+      setClassTypes(ctRes.classTypes || []);
+      setTeachers(tRes.teachers || []);
+      setLocations(lRes.locations || []);
+    } catch (err) { console.error('Failed to load form data:', err); }
+  };
 
   const loadSchedule = async () => {
     setLoading(true);
@@ -397,11 +421,69 @@ function SchedulePage() {
 
   const navigate = (dir) => { const d = new Date(currentDate); d.setDate(d.getDate() + dir * 7); setCurrentDate(d); };
 
+  const handleClassClick = (cls) => {
+    if (canManage && !cls.is_coop) {
+      setSelectedClass(cls);
+      setShowEditClass(true);
+    }
+  };
+
+  const handleCreateClass = async (formData) => {
+    try {
+      await api('/classes', {
+        method: 'POST',
+        body: JSON.stringify(formData),
+      });
+      setShowAddClass(false);
+      loadSchedule();
+      setToast({ message: 'Class created successfully', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  const handleUpdateClass = async (id, formData) => {
+    try {
+      await api(`/classes/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(formData),
+      });
+      setShowEditClass(false);
+      setSelectedClass(null);
+      loadSchedule();
+      setToast({ message: 'Class updated successfully', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  const handleCancelClass = async (id, reason) => {
+    try {
+      await api(`/classes/${id}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      });
+      setShowCancelClass(false);
+      setShowEditClass(false);
+      setSelectedClass(null);
+      loadSchedule();
+      setToast({ message: 'Class cancelled', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' });
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
         <div className="flex items-center gap-4">
+          {canManage && (
+            <button onClick={() => setShowAddClass(true)} className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg">
+              <Icons.Plus /> Add Class
+            </button>
+          )}
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input type="checkbox" checked={showCoopClasses} onChange={(e) => setShowCoopClasses(e.target.checked)} className="rounded border-gray-300 text-amber-600 focus:ring-amber-500" />
             Show Co-op Classes
@@ -415,12 +497,21 @@ function SchedulePage() {
       </div>
       {loading ? <div className="flex items-center justify-center h-64"><Spinner /></div> : (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {schedule.length === 0 ? <EmptyState icon={Icons.Calendar} message="No classes" /> : schedule.map(day => (
+          {schedule.length === 0 ? <EmptyState icon={Icons.Calendar} message="No classes scheduled" action={canManage && <button onClick={() => setShowAddClass(true)} className="text-amber-600 hover:text-amber-700 font-medium">Add a class</button>} /> : schedule.map(day => (
             <div key={day.date} className="border-b last:border-0">
-              <div className="px-6 py-3 bg-gray-50 font-medium text-gray-700">{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+              <div className="px-6 py-3 bg-gray-50 font-medium text-gray-700 flex justify-between items-center">
+                <span>{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                {canManage && (
+                  <button onClick={() => { setShowAddClass(true); }} className="text-sm text-amber-600 hover:text-amber-700">+ Add</button>
+                )}
+              </div>
               <div className="divide-y divide-gray-50">
                 {day.classes.map(c => (
-                  <div key={c.id} className={`px-6 py-4 flex items-center justify-between hover:bg-gray-50 ${c.is_coop ? 'bg-purple-50/50' : ''}`}>
+                  <div
+                    key={c.id}
+                    className={`px-6 py-4 flex items-center justify-between hover:bg-gray-50 ${c.is_coop ? 'bg-purple-50/50' : ''} ${canManage && !c.is_coop ? 'cursor-pointer' : ''} ${c.is_cancelled ? 'opacity-50 line-through' : ''}`}
+                    onClick={() => handleClassClick(c)}
+                  >
                     <div className="flex items-center gap-4">
                       <div className="w-16 text-center"><p className="font-bold text-gray-900">{c.start_time?.slice(0, 5)}</p><p className="text-xs text-gray-500">{c.duration || 60}min</p></div>
                       <div>
@@ -429,6 +520,9 @@ function SchedulePage() {
                           {c.is_coop && (
                             <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">Co-op</span>
                           )}
+                          {c.is_cancelled && (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">Cancelled</span>
+                          )}
                         </div>
                         <p className="text-sm text-gray-500">{c.teacher_name}</p>
                         {c.is_coop && c.coop_price && (
@@ -436,7 +530,10 @@ function SchedulePage() {
                         )}
                       </div>
                     </div>
-                    <p className={`font-medium ${(c.booked || 0) >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
+                    <div className="flex items-center gap-4">
+                      <p className={`font-medium ${(c.booked || 0) >= c.capacity ? 'text-red-600' : 'text-gray-900'}`}>{c.booked || 0}/{c.capacity}</p>
+                      {canManage && !c.is_coop && <Icons.Edit className="w-4 h-4 text-gray-400" />}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -444,7 +541,234 @@ function SchedulePage() {
           ))}
         </div>
       )}
+
+      {/* Add Class Modal */}
+      <Modal isOpen={showAddClass} onClose={() => setShowAddClass(false)} title="Add Class" size="lg">
+        <ClassForm
+          classTypes={classTypes}
+          teachers={teachers}
+          locations={locations}
+          onSubmit={handleCreateClass}
+          onCancel={() => setShowAddClass(false)}
+        />
+      </Modal>
+
+      {/* Edit Class Modal */}
+      <Modal isOpen={showEditClass} onClose={() => { setShowEditClass(false); setSelectedClass(null); }} title="Edit Class" size="lg">
+        {selectedClass && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="font-medium text-gray-900">{selectedClass.class_name}</p>
+              <p className="text-sm text-gray-500">{selectedClass.date} at {selectedClass.start_time?.slice(0, 5)}</p>
+              <p className="text-sm text-gray-500">Teacher: {selectedClass.teacher_name}</p>
+              <p className="text-sm text-gray-500">Booked: {selectedClass.booked || 0}/{selectedClass.capacity}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teacher</label>
+                <select
+                  className="w-full px-3 py-2 border rounded-lg"
+                  defaultValue={selectedClass.teacher_id}
+                  onChange={(e) => setSelectedClass({ ...selectedClass, teacher_id: e.target.value })}
+                >
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border rounded-lg"
+                  defaultValue={selectedClass.capacity}
+                  min={selectedClass.booked || 1}
+                  onChange={(e) => setSelectedClass({ ...selectedClass, capacity: parseInt(e.target.value) })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-between pt-4 border-t">
+              <button
+                onClick={() => setShowCancelClass(true)}
+                className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+              >
+                Cancel Class
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowEditClass(false); setSelectedClass(null); }}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => handleUpdateClass(selectedClass.id, {
+                    teacher_id: selectedClass.teacher_id,
+                    capacity: selectedClass.capacity,
+                  })}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Cancel Class Confirmation */}
+      <Modal isOpen={showCancelClass} onClose={() => setShowCancelClass(false)} title="Cancel Class" size="sm">
+        <div className="space-y-4">
+          <p className="text-gray-600">Are you sure you want to cancel this class? All bookings will be notified.</p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
+            <textarea
+              id="cancelReason"
+              className="w-full px-3 py-2 border rounded-lg"
+              rows={3}
+              placeholder="e.g., Teacher unavailable"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowCancelClass(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              Keep Class
+            </button>
+            <button
+              onClick={() => handleCancelClass(selectedClass.id, document.getElementById('cancelReason')?.value)}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+            >
+              Cancel Class
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
+  );
+}
+
+function ClassForm({ classTypes, teachers, locations, onSubmit, onCancel, initialData = null }) {
+  const [form, setForm] = useState({
+    class_type_id: initialData?.class_type_id || '',
+    teacher_id: initialData?.teacher_id || '',
+    location_id: initialData?.location_id || (locations[0]?.id || ''),
+    date: initialData?.date || new Date().toISOString().split('T')[0],
+    start_time: initialData?.start_time?.slice(0, 5) || '09:00',
+    capacity: initialData?.capacity || '',
+    notes: initialData?.notes || '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSubmit(form);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Class Type *</label>
+          <select
+            className="w-full px-3 py-2 border rounded-lg"
+            value={form.class_type_id}
+            onChange={(e) => setForm({ ...form, class_type_id: e.target.value })}
+            required
+          >
+            <option value="">Select class type</option>
+            {classTypes.map(ct => (
+              <option key={ct.id} value={ct.id}>{ct.name} ({ct.duration}min)</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Teacher *</label>
+          <select
+            className="w-full px-3 py-2 border rounded-lg"
+            value={form.teacher_id}
+            onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}
+            required
+          >
+            <option value="">Select teacher</option>
+            {teachers.map(t => (
+              <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+          <input
+            type="date"
+            className="w-full px-3 py-2 border rounded-lg"
+            value={form.date}
+            onChange={(e) => setForm({ ...form, date: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+          <input
+            type="time"
+            className="w-full px-3 py-2 border rounded-lg"
+            value={form.start_time}
+            onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+          <select
+            className="w-full px-3 py-2 border rounded-lg"
+            value={form.location_id}
+            onChange={(e) => setForm({ ...form, location_id: e.target.value })}
+            required
+          >
+            <option value="">Select location</option>
+            {locations.map(l => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Capacity (optional)</label>
+          <input
+            type="number"
+            className="w-full px-3 py-2 border rounded-lg"
+            value={form.capacity}
+            onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+            placeholder="Uses class type default"
+            min={1}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+        <textarea
+          className="w-full px-3 py-2 border rounded-lg"
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          rows={2}
+          placeholder="Any special notes for this class"
+        />
+      </div>
+      <div className="flex justify-end gap-2 pt-4 border-t">
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+        <button type="submit" disabled={loading} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+          {loading ? 'Creating...' : 'Create Class'}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -1589,15 +1913,21 @@ function SettingsPage() {
   const [classTypes, setClassTypes] = useState([]);
   const [membershipTypes, setMembershipTypes] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [toast, setToast] = useState(null);
 
   // Modal states
   const [showClassModal, setShowClassModal] = useState(false);
   const [showMembershipModal, setShowMembershipModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const [editingMembership, setEditingMembership] = useState(null);
+  const [editingTemplate, setEditingTemplate] = useState(null);
 
   // Form states
   const [generalSettings, setGeneralSettings] = useState({
@@ -1608,22 +1938,29 @@ function SettingsPage() {
   });
   const [classForm, setClassForm] = useState({ name: '', duration: 60, category: 'yoga', level: 'all', description: '', is_heated: false });
   const [membershipForm, setMembershipForm] = useState({ name: '', price: '', type: 'unlimited', credits: '', duration_days: 30 });
+  const [templateForm, setTemplateForm] = useState({ class_type_id: '', teacher_id: '', location_id: '', day_of_week: 0, start_time: '09:00', capacity: '' });
+  const [generateForm, setGenerateForm] = useState({ weeks: 2 });
 
-  const tabs = [{ id: 'general', label: 'General' }, { id: 'classes', label: 'Class Types' }, { id: 'memberships', label: 'Memberships' }, { id: 'teachers', label: 'Teachers' }];
+  const tabs = [{ id: 'general', label: 'General' }, { id: 'classes', label: 'Class Types' }, { id: 'memberships', label: 'Memberships' }, { id: 'schedule', label: 'Schedule Templates' }, { id: 'teachers', label: 'Teachers' }];
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   useEffect(() => { load(); }, []);
 
   const load = async () => {
     try {
-      const [ct, mt, t, settings] = await Promise.all([
+      const [ct, mt, t, loc, tpl, settings] = await Promise.all([
         api('/classes/types/list'),
         api('/memberships/types'),
         api('/classes/teachers/list'),
+        api('/locations'),
+        api('/classes/templates').catch(() => ({ templates: [] })),
         api('/admin/settings').catch(() => ({})),
       ]);
       setClassTypes(ct.class_types || []);
       setMembershipTypes(mt.membership_types || []);
       setTeachers(t.teachers || []);
+      setLocations(loc.locations || []);
+      setTemplates(tpl.templates || []);
       if (settings.settings) {
         setGeneralSettings(prev => ({ ...prev, ...settings.settings }));
       }
@@ -1712,6 +2049,74 @@ function SettingsPage() {
     setShowMembershipModal(true);
   };
 
+  const handleSaveTemplate = async () => {
+    setSaving(true);
+    try {
+      const data = {
+        ...templateForm,
+        day_of_week: parseInt(templateForm.day_of_week),
+        capacity: templateForm.capacity ? parseInt(templateForm.capacity) : null,
+      };
+      if (editingTemplate) {
+        await api(`/classes/templates/${editingTemplate.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        });
+        setToast({ message: 'Template updated', type: 'success' });
+      } else {
+        await api('/classes/templates', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        setToast({ message: 'Template created', type: 'success' });
+      }
+      setShowTemplateModal(false);
+      setEditingTemplate(null);
+      setTemplateForm({ class_type_id: '', teacher_id: '', location_id: '', day_of_week: 0, start_time: '09:00', capacity: '' });
+      load();
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to save template', type: 'error' });
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteTemplate = async (id) => {
+    if (!confirm('Delete this template?')) return;
+    try {
+      await api(`/classes/templates/${id}`, { method: 'DELETE' });
+      setToast({ message: 'Template deleted', type: 'success' });
+      load();
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to delete template', type: 'error' });
+    }
+  };
+
+  const openEditTemplate = (tpl) => {
+    setTemplateForm({
+      class_type_id: tpl.class_type_id,
+      teacher_id: tpl.teacher_id,
+      location_id: tpl.location_id,
+      day_of_week: tpl.day_of_week,
+      start_time: tpl.start_time?.slice(0, 5) || '09:00',
+      capacity: tpl.capacity?.toString() || '',
+    });
+    setEditingTemplate(tpl);
+    setShowTemplateModal(true);
+  };
+
+  const handleGenerateSchedule = async () => {
+    setGenerating(true);
+    try {
+      const result = await api('/classes/generate', {
+        method: 'POST',
+        body: JSON.stringify({ weeks: parseInt(generateForm.weeks) }),
+      });
+      setShowGenerateModal(false);
+      setToast({ message: `Schedule generated: ${result.classes_created} classes created, ${result.classes_skipped} skipped`, type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to generate schedule', type: 'error' });
+    } finally { setGenerating(false); }
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
 
   return (
@@ -1773,6 +2178,56 @@ function SettingsPage() {
                   </div>
                 </div>
               ))}</div>
+            </div>
+          )}
+          {activeTab === 'schedule' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Schedule Templates</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowGenerateModal(true)} className="flex items-center gap-2 px-3 py-1.5 border border-amber-600 text-amber-600 hover:bg-amber-50 rounded-lg text-sm">
+                    <Icons.Calendar /> Generate Schedule
+                  </button>
+                  <button onClick={() => { setEditingTemplate(null); setTemplateForm({ class_type_id: '', teacher_id: '', location_id: locations[0]?.id || '', day_of_week: 0, start_time: '09:00', capacity: '' }); setShowTemplateModal(true); }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm"><Icons.Plus /> Add Template</button>
+                </div>
+              </div>
+              <p className="text-sm text-gray-500">Templates define your recurring weekly schedule. Use "Generate Schedule" to create classes from these templates.</p>
+              {templates.length === 0 ? (
+                <EmptyState icon={Icons.Calendar} message="No schedule templates yet" action={
+                  <button onClick={() => { setEditingTemplate(null); setTemplateForm({ class_type_id: '', teacher_id: '', location_id: locations[0]?.id || '', day_of_week: 0, start_time: '09:00', capacity: '' }); setShowTemplateModal(true); }}
+                    className="text-amber-600 hover:text-amber-700 font-medium">Create your first template</button>
+                } />
+              ) : (
+                <div className="space-y-4">
+                  {dayNames.map((dayName, dayIndex) => {
+                    const dayTemplates = templates.filter(t => t.day_of_week === dayIndex);
+                    if (dayTemplates.length === 0) return null;
+                    return (
+                      <div key={dayIndex}>
+                        <h3 className="font-medium text-gray-700 mb-2">{dayName}</h3>
+                        <div className="space-y-2">
+                          {dayTemplates.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')).map(tpl => (
+                            <div key={tpl.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                              <div className="flex items-center gap-4">
+                                <span className="font-mono text-sm font-medium w-14">{tpl.start_time?.slice(0, 5)}</span>
+                                <div>
+                                  <p className="font-medium">{tpl.class_name}</p>
+                                  <p className="text-sm text-gray-500">{tpl.teacher_first_name} {tpl.teacher_last_name} • {tpl.location_name} • {tpl.capacity || 'Default'} spots</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-1">
+                                <button onClick={() => openEditTemplate(tpl)} className="p-2 hover:bg-gray-200 rounded"><Icons.Edit /></button>
+                                <button onClick={() => handleDeleteTemplate(tpl.id)} className="p-2 hover:bg-red-100 text-red-600 rounded"><Icons.Trash /></button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
           {activeTab === 'teachers' && (
@@ -1863,6 +2318,79 @@ function SettingsPage() {
               {saving ? 'Saving...' : editingMembership ? 'Update' : 'Create'}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Schedule Template Modal */}
+      <Modal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} title={editingTemplate ? 'Edit Template' : 'Add Schedule Template'}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Class Type *</label>
+              <select value={templateForm.class_type_id} onChange={(e) => setTemplateForm({ ...templateForm, class_type_id: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" required>
+                <option value="">Select class type</option>
+                {classTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name} ({ct.duration}min)</option>)}
+              </select></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Teacher *</label>
+              <select value={templateForm.teacher_id} onChange={(e) => setTemplateForm({ ...templateForm, teacher_id: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" required>
+                <option value="">Select teacher</option>
+                {teachers.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
+              </select></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Day of Week *</label>
+              <select value={templateForm.day_of_week} onChange={(e) => setTemplateForm({ ...templateForm, day_of_week: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                {dayNames.map((name, i) => <option key={i} value={i}>{name}</option>)}
+              </select></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+              <input type="time" value={templateForm.start_time} onChange={(e) => setTemplateForm({ ...templateForm, start_time: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" required /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+              <select value={templateForm.location_id} onChange={(e) => setTemplateForm({ ...templateForm, location_id: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" required>
+                <option value="">Select location</option>
+                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+              <input type="number" value={templateForm.capacity} onChange={(e) => setTemplateForm({ ...templateForm, capacity: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="Uses class type default" min={1} /></div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setShowTemplateModal(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onClick={handleSaveTemplate} disabled={saving || !templateForm.class_type_id || !templateForm.teacher_id || !templateForm.location_id} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+              {saving ? 'Saving...' : editingTemplate ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Generate Schedule Modal */}
+      <Modal isOpen={showGenerateModal} onClose={() => setShowGenerateModal(false)} title="Generate Schedule from Templates" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">This will create classes for the next few weeks based on your schedule templates. Existing classes will not be duplicated.</p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Generate for how many weeks?</label>
+            <select value={generateForm.weeks} onChange={(e) => setGenerateForm({ ...generateForm, weeks: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+              <option value="1">1 week</option>
+              <option value="2">2 weeks</option>
+              <option value="3">3 weeks</option>
+              <option value="4">4 weeks</option>
+            </select>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setShowGenerateModal(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onClick={handleGenerateSchedule} disabled={generating || templates.length === 0} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+              {generating ? 'Generating...' : 'Generate Schedule'}
+            </button>
+          </div>
+          {templates.length === 0 && (
+            <p className="text-sm text-amber-600">You need to create schedule templates first.</p>
+          )}
         </div>
       </Modal>
     </div>
