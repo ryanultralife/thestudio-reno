@@ -876,13 +876,13 @@ function CoopPage() {
         const [roomsData, tiersData, typesData] = await Promise.all([
           api('/coop/rooms'),
           api('/coop/tiers'),
-          api('/classes/types'),
+          api('/classes/types/list'),
         ]);
         setRooms(roomsData.rooms || []);
         setTiers(tiersData.tiers || []);
         setClassTypes(typesData.class_types || []);
       } else if (activeTab === 'myclasses') {
-        const data = await api('/coop/classes/my');
+        const data = await api('/coop/classes/mine');
         setMyClasses(data.classes || []);
       } else if (activeTab === 'earnings') {
         const data = await api('/coop/earnings/summary');
@@ -908,7 +908,7 @@ function CoopPage() {
       await api('/coop/agreements', {
         method: 'POST',
         body: JSON.stringify({
-          teacher_id: parseInt(agreementForm.teacherId),
+          teacher_id: agreementForm.teacherId,
           agreement_type: agreementForm.agreementType,
           start_date: agreementForm.startDate,
         }),
@@ -932,12 +932,12 @@ function CoopPage() {
         method: 'POST',
         body: JSON.stringify({
           room_id: selectedSlot.roomId,
-          tier_id: selectedSlot.tierId,
+          location_id: selectedSlot.locationId,
           date: selectedSlot.date,
           start_time: selectedSlot.startTime,
+          end_time: selectedSlot.endTime,
           class_type_id: bookingForm.classTypeId,
           coop_price: parseFloat(bookingForm.price),
-          title: bookingForm.title,
           description: bookingForm.description,
         }),
       });
@@ -969,6 +969,7 @@ function CoopPage() {
           slots.push({
             roomId: room.id,
             roomName: room.name,
+            locationId: room.location_id,
             tierId: tier.id,
             tierName: tier.name,
             date: dateStr,
