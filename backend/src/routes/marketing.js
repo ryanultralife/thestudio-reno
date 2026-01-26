@@ -7,11 +7,12 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/connection');
 const { authenticate, requirePermission } = require('../middleware/auth');
-const { SegmentationEngine, CampaignService, AutomationService } = require('../services/marketing');
+const { SegmentationEngine, CampaignService, AutomationService, SMSCampaignService } = require('../services/marketing');
 
 const segmentEngine = new SegmentationEngine();
 const campaignService = new CampaignService();
 const automationService = new AutomationService();
+const smsCampaignService = new SMSCampaignService();
 
 // ============================================
 // EMAIL TEMPLATES
@@ -344,6 +345,190 @@ router.post('/campaigns/:id/cancel', authenticate, requirePermission('settings.e
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// SMS CAMPAIGNS
+// ============================================
+
+/**
+ * GET /api/marketing/sms/campaigns
+ * List all SMS campaigns
+ */
+router.get('/sms/campaigns', authenticate, requirePermission('settings.view'), async (req, res) => {
+  try {
+    const { status, limit = 50, offset = 0 } = req.query;
+    const campaigns = await smsCampaignService.listCampaigns({
+      status,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+    res.json({ campaigns });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/marketing/sms/campaigns/:id
+ * Get SMS campaign details
+ */
+router.get('/sms/campaigns/:id', authenticate, requirePermission('settings.view'), async (req, res) => {
+  try {
+    const campaign = await smsCampaignService.getCampaign(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+
+    const analytics = await smsCampaignService.getCampaignAnalytics(req.params.id);
+    res.json({ campaign, analytics });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/marketing/sms/campaigns
+ * Create a new SMS campaign
+ */
+router.post('/sms/campaigns', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const campaign = await smsCampaignService.createCampaign(req.body, req.user.id);
+    res.status(201).json(campaign);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/marketing/sms/campaigns/:id
+ * Update an SMS campaign
+ */
+router.put('/sms/campaigns/:id', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { name, description, message, segmentId, scheduledFor } = req.body;
+
+    const result = await db.query(`
+      UPDATE marketing_sms_campaigns
+      SET name = $1, description = $2, message = $3, segment_id = $4, scheduled_for = $5, updated_at = NOW()
+      WHERE id = $6 AND status IN ('draft', 'scheduled')
+      RETURNING *
+    `, [name, description, message, segmentId, scheduledFor, req.params.id]);
+
+    if (!result.rows[0]) {
+      return res.status(400).json({ error: 'Cannot update campaign after sending' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/marketing/sms/campaigns/:id/schedule
+ * Schedule an SMS campaign
+ */
+router.post('/sms/campaigns/:id/schedule', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { scheduledFor } = req.body;
+    const result = await smsCampaignService.scheduleCampaign(req.params.id, scheduledFor);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/marketing/sms/campaigns/:id/send
+ * Send an SMS campaign immediately
+ */
+router.post('/sms/campaigns/:id/send', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    // Send in background
+    smsCampaignService.sendCampaign(req.params.id)
+      .then(result => console.log('[Marketing] SMS campaign sent:', result))
+      .catch(error => console.error('[Marketing] SMS campaign send failed:', error));
+
+    res.json({ success: true, message: 'SMS campaign is being sent' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/marketing/sms/campaigns/:id/test
+ * Send a test SMS
+ */
+router.post('/sms/campaigns/:id/test', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { testPhone } = req.body;
+    if (!testPhone) {
+      return res.status(400).json({ error: 'Test phone number is required' });
+    }
+    const result = await smsCampaignService.sendTestSMS(req.params.id, testPhone);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/marketing/sms/campaigns/:id/cancel
+ * Cancel a scheduled SMS campaign
+ */
+router.post('/sms/campaigns/:id/cancel', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    await db.query(`
+      UPDATE marketing_sms_campaigns SET status = 'cancelled' WHERE id = $1 AND status = 'scheduled'
+    `, [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/marketing/sms/stats
+ * Get SMS opt-in statistics
+ */
+router.get('/sms/stats', authenticate, requirePermission('settings.view'), async (req, res) => {
+  try {
+    const stats = await smsCampaignService.getOptInStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/marketing/sms/webhook
+ * Receive SMS replies (from Twilio)
+ */
+router.post('/sms/webhook', express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const { From: from, Body: body } = req.body;
+
+    if (!from || !body) {
+      return res.status(400).send('Missing required fields');
+    }
+
+    const result = await smsCampaignService.handleIncomingReply(from, body);
+
+    // Respond with TwiML if we need to send a reply
+    if (result.message) {
+      res.set('Content-Type', 'text/xml');
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Message>${result.message}</Message>
+        </Response>`);
+    } else {
+      res.status(200).send('<Response></Response>');
+    }
+  } catch (error) {
+    console.error('[SMS Webhook] Error:', error);
+    res.status(500).send('<Response></Response>');
   }
 });
 

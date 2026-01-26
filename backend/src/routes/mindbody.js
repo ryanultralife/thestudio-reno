@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/connection');
 const { authenticate, requirePermission } = require('../middleware/auth');
-const { getClient, SyncService, WebhookHandler } = require('../services/mindbody');
+const { getClient, SyncService, WebhookHandler, MindbodyImportService } = require('../services/mindbody');
 
 // ============================================
 // CONFIGURATION ROUTES
@@ -492,6 +492,201 @@ router.post('/webhook/retry', authenticate, requirePermission('settings.edit'), 
     res.json(result);
   } catch (error) {
     console.error('Error retrying webhooks:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// DATA IMPORT ROUTES
+// Full migration from MindBody with history
+// ============================================
+
+/**
+ * POST /api/mindbody/import/full
+ * Start a full data import from MindBody
+ * Imports clients, visit history, memberships, and purchases
+ */
+router.post('/import/full', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { dryRun = false, batchSize = 50 } = req.body;
+    const importService = new MindbodyImportService();
+
+    // Start import in background
+    importService.runFullImport({ dryRun, batchSize })
+      .then(result => {
+        console.log('[MindBody Import] Full import completed:', result);
+      })
+      .catch(error => {
+        console.error('[MindBody Import] Full import failed:', error);
+      });
+
+    res.json({
+      success: true,
+      message: 'Full import started. This may take a while for large datasets.',
+      jobId: Date.now(), // Simple job ID for tracking
+    });
+  } catch (error) {
+    console.error('Error starting import:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mindbody/import/clients
+ * Import clients only
+ */
+router.post('/import/clients', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { dryRun = false, batchSize = 50, includeInactive = false } = req.body;
+    const importService = new MindbodyImportService();
+
+    importService.importClients({ dryRun, batchSize, includeInactive })
+      .then(result => {
+        console.log('[MindBody Import] Client import completed:', result);
+      })
+      .catch(error => {
+        console.error('[MindBody Import] Client import failed:', error);
+      });
+
+    res.json({
+      success: true,
+      message: 'Client import started',
+    });
+  } catch (error) {
+    console.error('Error starting client import:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mindbody/import/visits
+ * Import visit history for all clients
+ */
+router.post('/import/visits', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { dryRun = false, startDate, endDate } = req.body;
+    const importService = new MindbodyImportService();
+
+    importService.importVisitHistory({
+      dryRun,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+    })
+      .then(result => {
+        console.log('[MindBody Import] Visit import completed:', result);
+      })
+      .catch(error => {
+        console.error('[MindBody Import] Visit import failed:', error);
+      });
+
+    res.json({
+      success: true,
+      message: 'Visit history import started',
+    });
+  } catch (error) {
+    console.error('Error starting visit import:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/mindbody/import/subscribers
+ * Import subscribers for marketing (with opt-in status)
+ */
+router.post('/import/subscribers', authenticate, requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { dryRun = false, emailOnly = false, smsOnly = false } = req.body;
+    const importService = new MindbodyImportService();
+
+    importService.importSubscribers({ dryRun, emailOnly, smsOnly })
+      .then(result => {
+        console.log('[MindBody Import] Subscriber import completed:', result);
+      })
+      .catch(error => {
+        console.error('[MindBody Import] Subscriber import failed:', error);
+      });
+
+    res.json({
+      success: true,
+      message: 'Subscriber import started',
+    });
+  } catch (error) {
+    console.error('Error starting subscriber import:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/mindbody/import/status
+ * Get import job status
+ */
+router.get('/import/status', authenticate, requirePermission('settings.view'), async (req, res) => {
+  try {
+    // Get recent import jobs
+    const jobs = await db.query(`
+      SELECT * FROM marketing_import_jobs
+      ORDER BY started_at DESC
+      LIMIT 10
+    `);
+
+    // Get subscriber counts
+    const counts = await db.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE email_opted_in = true) as email_opted_in,
+        COUNT(*) FILTER (WHERE sms_opted_in = true) as sms_opted_in,
+        COUNT(*) FILTER (WHERE imported_from = 'mindbody') as from_mindbody
+      FROM marketing_subscribers
+    `);
+
+    res.json({
+      jobs: jobs.rows,
+      subscriberCounts: counts.rows[0],
+    });
+  } catch (error) {
+    console.error('Error fetching import status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/mindbody/import/preview
+ * Preview what will be imported (sample data)
+ */
+router.get('/import/preview', authenticate, requirePermission('settings.view'), async (req, res) => {
+  try {
+    const client = getClient();
+
+    // Get sample of clients
+    const clientsResponse = await client.getClients({ limit: 10 });
+    const sampleClients = clientsResponse.Clients || [];
+
+    // Count total
+    const totalResponse = await client.getClients({ limit: 1 });
+
+    // Get clients with email/SMS consent
+    const consentCounts = {
+      total: totalResponse.PaginationResponse?.TotalResults || sampleClients.length,
+      withEmail: sampleClients.filter(c => c.Email && c.EmailOptIn !== false).length,
+      withSMS: sampleClients.filter(c => c.MobilePhone && c.PromotionalSmsOptIn).length,
+    };
+
+    res.json({
+      preview: sampleClients.map(c => ({
+        id: c.Id,
+        name: `${c.FirstName} ${c.LastName}`,
+        email: c.Email,
+        phone: c.MobilePhone,
+        emailOptIn: c.EmailOptIn,
+        smsOptIn: c.PromotionalSmsOptIn,
+        membershipStatus: c.Status,
+        firstVisit: c.FirstAppointmentDate,
+        lastVisit: c.LastFormulaNotes?.length > 0 ? 'Has history' : 'Unknown',
+      })),
+      counts: consentCounts,
+    });
+  } catch (error) {
+    console.error('Error previewing import:', error);
     res.status(500).json({ error: error.message });
   }
 });
