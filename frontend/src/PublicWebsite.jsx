@@ -874,6 +874,8 @@ function ShopPage({ user, onShowAuth }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [toast, setToast] = useState(null);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [orderComplete, setOrderComplete] = useState(null);
 
   useEffect(() => { loadProducts(); loadCategories(); }, [selectedCategory]);
 
@@ -938,6 +940,35 @@ function ShopPage({ user, onShowAuth }) {
 
   const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const handleCheckout = async () => {
+    if (!user || cart.length === 0) return;
+    setCheckingOut(true);
+    try {
+      const orderData = {
+        items: cart.map(item => ({
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+          unit_price: parseFloat(item.price),
+        })),
+        payment_method: 'card', // For now, assume card payment
+        customer_email: user.email,
+      };
+
+      const result = await api('/retail/orders', {
+        method: 'POST',
+        body: JSON.stringify(orderData),
+      });
+
+      setOrderComplete(result.order);
+      setCart([]);
+      setToast({ message: 'Order placed successfully!', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message || 'Checkout failed. Please try again.', type: 'error' });
+    } finally {
+      setCheckingOut(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -1106,13 +1137,37 @@ function ShopPage({ user, onShowAuth }) {
                       onShowAuth('login');
                       setShowCart(false);
                     } else {
-                      // TODO: Implement checkout
-                      setToast({ message: 'Checkout coming soon!', type: 'success' });
+                      handleCheckout();
                     }
                   }}
-                  className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg"
+                  disabled={checkingOut}
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg disabled:opacity-50"
                 >
-                  {user ? 'Checkout' : 'Sign in to Checkout'}
+                  {checkingOut ? 'Processing...' : user ? 'Checkout' : 'Sign in to Checkout'}
+                </button>
+              </div>
+            )}
+
+            {/* Order Success */}
+            {orderComplete && (
+              <div className="absolute inset-0 bg-white flex flex-col items-center justify-center p-6">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Order Confirmed!</h3>
+                <p className="text-gray-600 text-center mb-4">
+                  Order #{orderComplete.order_number || orderComplete.id?.slice(0, 8)}
+                </p>
+                <p className="text-sm text-gray-500 text-center mb-6">
+                  A confirmation email has been sent to {user?.email}
+                </p>
+                <button
+                  onClick={() => { setOrderComplete(null); setShowCart(false); }}
+                  className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                >
+                  Continue Shopping
                 </button>
               </div>
             )}
@@ -1127,22 +1182,36 @@ function ShopPage({ user, onShowAuth }) {
 // ACCOUNT PAGE
 // ============================================
 
-function AccountPage({ user, onLogout }) {
+function AccountPage({ user, onLogout, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookings, setBookings] = useState([]);
+  const [history, setHistory] = useState([]);
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [profile, setProfile] = useState({
+    first_name: user?.first_name || '',
+    last_name: user?.last_name || '',
+    phone: user?.phone || '',
+  });
 
   useEffect(() => { loadAccountData(); }, []);
 
   const loadAccountData = async () => {
     try {
-      const [bookingsData, membershipData] = await Promise.all([
-        api('/bookings/my-bookings?status=upcoming'),
+      const [upcomingData, allBookingsData, membershipData] = await Promise.all([
+        api('/bookings/my-bookings?upcoming=true'),
+        api('/bookings/my-bookings'),
         api('/memberships/mine'),
       ]);
-      setBookings(bookingsData.bookings || []);
+      setBookings(upcomingData.bookings || []);
+      // Filter history: past dates or non-booked statuses
+      const today = new Date().toISOString().split('T')[0];
+      const pastBookings = (allBookingsData.bookings || []).filter(b =>
+        b.date < today || ['attended', 'no_show', 'cancelled'].includes(b.status)
+      ).slice(0, 20);
+      setHistory(pastBookings);
       setMembership(membershipData.memberships?.find(m => m.status === 'active'));
     } catch (err) { console.error('Failed to load account data:', err); }
     finally { setLoading(false); }
@@ -1156,6 +1225,22 @@ function AccountPage({ user, onLogout }) {
       loadAccountData();
     } catch (err) {
       setToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const updated = await api('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify(profile),
+      });
+      setToast({ message: 'Profile updated successfully', type: 'success' });
+      if (onUserUpdate) onUserUpdate(updated.user);
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to update profile', type: 'error' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1238,20 +1323,68 @@ function AccountPage({ user, onLogout }) {
           )}
 
           {activeTab === 'history' && (
-            <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-              <p className="text-gray-500">Your class history will appear here</p>
+            <div className="space-y-4">
+              {history.length === 0 ? (
+                <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+                  <p className="text-gray-500">No class history yet</p>
+                </div>
+              ) : (
+                history.map((booking) => (
+                  <div key={booking.id} className="bg-white rounded-xl shadow-sm p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="text-center min-w-[60px]">
+                        <p className="text-sm font-medium text-gray-600">{booking.start_time?.slice(0, 5)}</p>
+                        <p className="text-xs text-gray-500">{new Date(booking.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{booking.class_name}</p>
+                        <p className="text-sm text-gray-500">{booking.teacher_name}</p>
+                      </div>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      booking.status === 'attended' ? 'bg-green-100 text-green-800' :
+                      booking.status === 'no_show' ? 'bg-red-100 text-red-800' :
+                      booking.status === 'cancelled' ? 'bg-gray-100 text-gray-600' :
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {booking.status === 'attended' ? 'Attended' :
+                       booking.status === 'no_show' ? 'No Show' :
+                       booking.status === 'cancelled' ? 'Cancelled' : booking.status}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
           {activeTab === 'profile' && (
             <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">First Name</label><input type="text" defaultValue={user.first_name} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label><input type="text" defaultValue={user.last_name} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <input type="text" value={profile.first_name} onChange={(e) => setProfile({ ...profile, first_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <input type="text" value={profile.last_name} onChange={(e) => setProfile({ ...profile, last_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" />
+                </div>
               </div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" defaultValue={user.email} className="w-full px-3 py-2 border border-gray-300 rounded-lg" disabled /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input type="tel" defaultValue={user.phone} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-              <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg">Save Changes</button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" value={user.email} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50" disabled />
+                <p className="text-xs text-gray-500 mt-1">Contact us to change your email address</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input type="tel" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="(555) 123-4567" />
+              </div>
+              <button onClick={handleSaveProfile} disabled={saving}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
             </div>
           )}
         </>
@@ -1319,7 +1452,7 @@ export default function PublicWebsite() {
       case 'teachers': return <TeachersPage />;
       case 'pricing': return <PricingPage onShowAuth={handleShowAuth} />;
       case 'shop': return <ShopPage user={user} onShowAuth={handleShowAuth} />;
-      case 'account': return user ? <AccountPage user={user} onLogout={handleLogout} /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
+      case 'account': return user ? <AccountPage user={user} onLogout={handleLogout} onUserUpdate={setUser} /> : <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
       default: return <HomePage setCurrentPage={setCurrentPage} onShowAuth={handleShowAuth} />;
     }
   };

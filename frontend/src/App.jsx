@@ -834,12 +834,15 @@ function CoopPage() {
   const [loading, setLoading] = useState(true);
   const [showBookModal, setShowBookModal] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [showTierModal, setShowTierModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [bookingForm, setBookingForm] = useState({ classTypeId: '', price: '', title: '', description: '' });
   const [agreementForm, setAgreementForm] = useState({ teacherId: '', agreementType: 'per_class', startDate: '' });
+  const [tierForm, setTierForm] = useState({ room_id: '', name: 'Standard', start_time: '09:00', end_time: '12:00', days_of_week: [1,2,3,4,5], price: '', suggested_class_price: '', duration_minutes: 90 });
   const [allTeachers, setAllTeachers] = useState([]);
   const [classTypes, setClassTypes] = useState([]);
   const [toast, setToast] = useState(null);
+  const [savingTier, setSavingTier] = useState(false);
 
   const hasActiveAgreement = myAgreement?.status === 'active';
 
@@ -948,6 +951,38 @@ function CoopPage() {
       loadData();
     } catch (err) {
       setToast({ message: err.message, type: 'error' });
+    }
+  };
+
+  const handleCreateTier = async () => {
+    if (!tierForm.room_id || !tierForm.price) {
+      setToast({ message: 'Please select a room and set a price', type: 'error' });
+      return;
+    }
+    setSavingTier(true);
+    try {
+      await api('/coop/tiers', {
+        method: 'POST',
+        body: JSON.stringify({
+          room_id: tierForm.room_id,
+          name: tierForm.name,
+          slug: tierForm.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+          start_time: tierForm.start_time,
+          end_time: tierForm.end_time,
+          days_of_week: tierForm.days_of_week,
+          price: parseFloat(tierForm.price),
+          suggested_class_price: tierForm.suggested_class_price ? parseFloat(tierForm.suggested_class_price) : null,
+          duration_minutes: parseInt(tierForm.duration_minutes),
+        }),
+      });
+      setToast({ message: 'Rental tier created successfully!', type: 'success' });
+      setShowTierModal(false);
+      setTierForm({ room_id: '', name: 'Standard', start_time: '09:00', end_time: '12:00', days_of_week: [1,2,3,4,5], price: '', suggested_class_price: '', duration_minutes: 90 });
+      loadData();
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' });
+    } finally {
+      setSavingTier(false);
     }
   };
 
@@ -1302,7 +1337,8 @@ function CoopPage() {
             <div className="bg-white rounded-xl shadow-sm">
               <div className="px-6 py-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Rental Pricing Tiers</h2>
-                <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm">
+                <button onClick={() => { setTierForm({ room_id: rooms[0]?.id || '', name: 'Standard', start_time: '09:00', end_time: '12:00', days_of_week: [1,2,3,4,5], price: '', suggested_class_price: '', duration_minutes: 90 }); setShowTierModal(true); }}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm">
                   + Add Tier
                 </button>
               </div>
@@ -1461,6 +1497,89 @@ function CoopPage() {
         )}
       </Modal>
 
+      {/* Create Tier Modal */}
+      <Modal isOpen={showTierModal} onClose={() => setShowTierModal(false)} title="Create Rental Tier" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Room *</label>
+            <select value={tierForm.room_id} onChange={(e) => setTierForm({ ...tierForm, room_id: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+              <option value="">Select room...</option>
+              {rooms.filter(r => r.allows_coop).map(r => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tier Name *</label>
+              <select value={tierForm.name} onChange={(e) => setTierForm({ ...tierForm, name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+                <option value="Off-Peak">Off-Peak</option>
+                <option value="Standard">Standard</option>
+                <option value="Prime">Prime</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Duration (min)</label>
+              <input type="number" value={tierForm.duration_minutes} onChange={(e) => setTierForm({ ...tierForm, duration_minutes: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+              <input type="time" value={tierForm.start_time} onChange={(e) => setTierForm({ ...tierForm, start_time: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+              <input type="time" value={tierForm.end_time} onChange={(e) => setTierForm({ ...tierForm, end_time: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Days of Week *</label>
+            <div className="flex gap-2 flex-wrap">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
+                <button key={i} type="button"
+                  onClick={() => {
+                    const days = tierForm.days_of_week.includes(i)
+                      ? tierForm.days_of_week.filter(d => d !== i)
+                      : [...tierForm.days_of_week, i].sort();
+                    setTierForm({ ...tierForm, days_of_week: days });
+                  }}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                    tierForm.days_of_week.includes(i) ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>
+                  {day}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rental Price ($) *</label>
+              <input type="number" step="0.01" value={tierForm.price} onChange={(e) => setTierForm({ ...tierForm, price: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="110.00" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Suggested Class Price ($)</label>
+              <input type="number" step="0.01" value={tierForm.suggested_class_price} onChange={(e) => setTierForm({ ...tierForm, suggested_class_price: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="30.00" />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button onClick={() => setShowTierModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button onClick={handleCreateTier} disabled={savingTier} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium disabled:opacity-50">
+              {savingTier ? 'Creating...' : 'Create Tier'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
@@ -1472,16 +1591,133 @@ function SettingsPage() {
   const [membershipTypes, setMembershipTypes] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // Modal states
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [showMembershipModal, setShowMembershipModal] = useState(false);
+  const [editingClass, setEditingClass] = useState(null);
+  const [editingMembership, setEditingMembership] = useState(null);
+
+  // Form states
+  const [generalSettings, setGeneralSettings] = useState({
+    studio_name: 'The Studio Reno',
+    email: 'hello@thestudioreno.com',
+    late_cancel_hours: 2,
+    booking_window_days: 7,
+  });
+  const [classForm, setClassForm] = useState({ name: '', duration: 60, category: 'yoga', level: 'all', description: '', is_heated: false });
+  const [membershipForm, setMembershipForm] = useState({ name: '', price: '', type: 'unlimited', credits: '', duration_days: 30 });
 
   const tabs = [{ id: 'general', label: 'General' }, { id: 'classes', label: 'Class Types' }, { id: 'memberships', label: 'Memberships' }, { id: 'teachers', label: 'Teachers' }];
 
   useEffect(() => { load(); }, []);
-  const load = async () => { try { const [ct, mt, t] = await Promise.all([api('/classes/types/list'), api('/memberships/types'), api('/classes/teachers/list')]); setClassTypes(ct.class_types || []); setMembershipTypes(mt.membership_types || []); setTeachers(t.teachers || []); } catch (err) {} finally { setLoading(false); } };
+
+  const load = async () => {
+    try {
+      const [ct, mt, t, settings] = await Promise.all([
+        api('/classes/types/list'),
+        api('/memberships/types'),
+        api('/classes/teachers/list'),
+        api('/admin/settings').catch(() => ({})),
+      ]);
+      setClassTypes(ct.class_types || []);
+      setMembershipTypes(mt.membership_types || []);
+      setTeachers(t.teachers || []);
+      if (settings.settings) {
+        setGeneralSettings(prev => ({ ...prev, ...settings.settings }));
+      }
+    } catch (err) { console.error('Failed to load settings:', err); }
+    finally { setLoading(false); }
+  };
+
+  const handleSaveGeneral = async () => {
+    setSaving(true);
+    try {
+      await api('/admin/settings/general', {
+        method: 'PUT',
+        body: JSON.stringify(generalSettings),
+      });
+      setToast({ message: 'Settings saved successfully', type: 'success' });
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to save settings', type: 'error' });
+    } finally { setSaving(false); }
+  };
+
+  const handleSaveClass = async () => {
+    setSaving(true);
+    try {
+      if (editingClass) {
+        await api(`/admin/class-types/${editingClass.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(classForm),
+        });
+        setToast({ message: 'Class type updated', type: 'success' });
+      } else {
+        await api('/admin/class-types', {
+          method: 'POST',
+          body: JSON.stringify(classForm),
+        });
+        setToast({ message: 'Class type created', type: 'success' });
+      }
+      setShowClassModal(false);
+      setEditingClass(null);
+      setClassForm({ name: '', duration: 60, category: 'yoga', level: 'all', description: '', is_heated: false });
+      load();
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to save class type', type: 'error' });
+    } finally { setSaving(false); }
+  };
+
+  const handleSaveMembership = async () => {
+    setSaving(true);
+    try {
+      const data = {
+        ...membershipForm,
+        price: parseFloat(membershipForm.price),
+        credits: membershipForm.type === 'credits' ? parseInt(membershipForm.credits) : null,
+        duration_days: parseInt(membershipForm.duration_days),
+      };
+      if (editingMembership) {
+        await api(`/admin/membership-types/${editingMembership.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        });
+        setToast({ message: 'Membership updated', type: 'success' });
+      } else {
+        await api('/admin/membership-types', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        setToast({ message: 'Membership created', type: 'success' });
+      }
+      setShowMembershipModal(false);
+      setEditingMembership(null);
+      setMembershipForm({ name: '', price: '', type: 'unlimited', credits: '', duration_days: 30 });
+      load();
+    } catch (err) {
+      setToast({ message: err.message || 'Failed to save membership', type: 'error' });
+    } finally { setSaving(false); }
+  };
+
+  const openEditClass = (cls) => {
+    setClassForm({ name: cls.name, duration: cls.duration, category: cls.category || 'yoga', level: cls.level || 'all', description: cls.description || '', is_heated: cls.is_heated || false });
+    setEditingClass(cls);
+    setShowClassModal(true);
+  };
+
+  const openEditMembership = (mem) => {
+    setMembershipForm({ name: mem.name, price: mem.price?.toString() || '', type: mem.type || 'unlimited', credits: mem.credits?.toString() || '', duration_days: mem.duration_days || 30 });
+    setEditingMembership(mem);
+    setShowMembershipModal(true);
+  };
 
   if (loading) return <div className="flex items-center justify-center h-64"><Spinner /></div>;
 
   return (
     <div className="space-y-6">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
       <div className="flex gap-6">
         <div className="w-48 space-y-1">
@@ -1492,34 +1728,144 @@ function SettingsPage() {
             <div className="space-y-6">
               <h2 className="font-semibold text-gray-900">General Settings</h2>
               <div className="grid grid-cols-2 gap-6">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Studio Name</label><input type="text" defaultValue="The Studio Reno" className="w-full px-3 py-2 border rounded-lg" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" defaultValue="hello@thestudioreno.com" className="w-full px-3 py-2 border rounded-lg" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Late Cancel (hours)</label><input type="number" defaultValue={2} className="w-full px-3 py-2 border rounded-lg" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1">Booking Window (days)</label><input type="number" defaultValue={7} className="w-full px-3 py-2 border rounded-lg" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Studio Name</label>
+                  <input type="text" value={generalSettings.studio_name} onChange={(e) => setGeneralSettings({ ...generalSettings, studio_name: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={generalSettings.email} onChange={(e) => setGeneralSettings({ ...generalSettings, email: e.target.value })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Late Cancel (hours)</label>
+                  <input type="number" value={generalSettings.late_cancel_hours} onChange={(e) => setGeneralSettings({ ...generalSettings, late_cancel_hours: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1">Booking Window (days)</label>
+                  <input type="number" value={generalSettings.booking_window_days} onChange={(e) => setGeneralSettings({ ...generalSettings, booking_window_days: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
               </div>
-              <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg">Save</button>
+              <button onClick={handleSaveGeneral} disabled={saving} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
             </div>
           )}
           {activeTab === 'classes' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900">Class Types</h2><button className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm"><Icons.Plus /> Add</button></div>
-              <div className="space-y-3">{classTypes.map(c => <div key={c.id} className="flex items-center justify-between p-4 border rounded-lg"><div><p className="font-medium">{c.name}</p><p className="text-sm text-gray-500">{c.duration}min • {c.category} • {c.level}</p></div><div className="flex gap-2"><button className="p-2 hover:bg-gray-100 rounded"><Icons.Edit /></button><button className="p-2 hover:bg-red-100 text-red-600 rounded"><Icons.Trash /></button></div></div>)}</div>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Class Types</h2>
+                <button onClick={() => { setEditingClass(null); setClassForm({ name: '', duration: 60, category: 'yoga', level: 'all', description: '', is_heated: false }); setShowClassModal(true); }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm"><Icons.Plus /> Add</button>
+              </div>
+              <div className="space-y-3">{classTypes.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div><p className="font-medium">{c.name}</p><p className="text-sm text-gray-500">{c.duration}min • {c.category} • {c.level} {c.is_heated && '• 🔥 Heated'}</p></div>
+                  <div className="flex gap-2">
+                    <button onClick={() => openEditClass(c)} className="p-2 hover:bg-gray-100 rounded"><Icons.Edit /></button>
+                  </div>
+                </div>
+              ))}</div>
             </div>
           )}
           {activeTab === 'memberships' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900">Memberships</h2><button className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm"><Icons.Plus /> Add</button></div>
-              <div className="space-y-3">{membershipTypes.map(m => <div key={m.id} className="flex items-center justify-between p-4 border rounded-lg"><div><p className="font-medium">{m.name}</p><p className="text-sm text-gray-500">${m.price} • {m.type === 'unlimited' ? 'Unlimited' : `${m.credits} credits`}</p></div><div className="flex gap-2"><button className="p-2 hover:bg-gray-100 rounded"><Icons.Edit /></button><button className="p-2 hover:bg-red-100 text-red-600 rounded"><Icons.Trash /></button></div></div>)}</div>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Memberships</h2>
+                <button onClick={() => { setEditingMembership(null); setMembershipForm({ name: '', price: '', type: 'unlimited', credits: '', duration_days: 30 }); setShowMembershipModal(true); }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm"><Icons.Plus /> Add</button>
+              </div>
+              <div className="space-y-3">{membershipTypes.map(m => (
+                <div key={m.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div><p className="font-medium">{m.name}</p><p className="text-sm text-gray-500">${parseFloat(m.price).toFixed(2)} • {m.type === 'unlimited' ? 'Unlimited classes' : `${m.credits} credits`}</p></div>
+                  <div className="flex gap-2">
+                    <button onClick={() => openEditMembership(m)} className="p-2 hover:bg-gray-100 rounded"><Icons.Edit /></button>
+                  </div>
+                </div>
+              ))}</div>
             </div>
           )}
           {activeTab === 'teachers' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900">Teachers</h2><button className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm"><Icons.Plus /> Add</button></div>
-              <div className="space-y-3">{teachers.map(t => <div key={t.id} className="flex items-center justify-between p-4 border rounded-lg"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold">{t.first_name?.[0]}{t.last_name?.[0]}</div><div><p className="font-medium">{t.first_name} {t.last_name}</p><p className="text-sm text-gray-500">{t.email}</p></div></div><button className="p-2 hover:bg-gray-100 rounded"><Icons.Edit /></button></div>)}</div>
+              <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900">Teachers</h2></div>
+              <div className="space-y-3">{teachers.map(t => (
+                <div key={t.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold">{t.first_name?.[0]}{t.last_name?.[0]}</div>
+                    <div><p className="font-medium">{t.first_name} {t.last_name}</p><p className="text-sm text-gray-500">{t.title || 'Teacher'}</p></div>
+                  </div>
+                </div>
+              ))}</div>
+              <p className="text-sm text-gray-500">To add teachers, create a user account with the "Teacher" role.</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Class Type Modal */}
+      <Modal isOpen={showClassModal} onClose={() => setShowClassModal(false)} title={editingClass ? 'Edit Class Type' : 'Add Class Type'}>
+        <div className="space-y-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input type="text" value={classForm.name} onChange={(e) => setClassForm({ ...classForm, name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="Vinyasa Flow" /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Duration (min)</label>
+              <input type="number" value={classForm.duration} onChange={(e) => setClassForm({ ...classForm, duration: parseInt(e.target.value) })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select value={classForm.category} onChange={(e) => setClassForm({ ...classForm, category: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                <option value="yoga">Yoga</option><option value="pilates">Pilates</option><option value="meditation">Meditation</option><option value="fitness">Fitness</option><option value="other">Other</option>
+              </select></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+              <select value={classForm.level} onChange={(e) => setClassForm({ ...classForm, level: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+                <option value="all">All Levels</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
+              </select></div>
+            <div className="flex items-center pt-6">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={classForm.is_heated} onChange={(e) => setClassForm({ ...classForm, is_heated: e.target.checked })} className="rounded border-gray-300 text-amber-600 focus:ring-amber-500" />
+                <span className="text-sm font-medium text-gray-700">Heated class</span>
+              </label>
+            </div>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea value={classForm.description} onChange={(e) => setClassForm({ ...classForm, description: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" rows={3} placeholder="Class description..." /></div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setShowClassModal(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onClick={handleSaveClass} disabled={saving || !classForm.name} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+              {saving ? 'Saving...' : editingClass ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Membership Modal */}
+      <Modal isOpen={showMembershipModal} onClose={() => setShowMembershipModal(false)} title={editingMembership ? 'Edit Membership' : 'Add Membership'}>
+        <div className="space-y-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input type="text" value={membershipForm.name} onChange={(e) => setMembershipForm({ ...membershipForm, name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="Monthly Unlimited" /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Price ($) *</label>
+              <input type="number" step="0.01" value={membershipForm.price} onChange={(e) => setMembershipForm({ ...membershipForm, price: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="149.00" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Duration (days)</label>
+              <input type="number" value={membershipForm.duration_days} onChange={(e) => setMembershipForm({ ...membershipForm, duration_days: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <select value={membershipForm.type} onChange={(e) => setMembershipForm({ ...membershipForm, type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500">
+              <option value="unlimited">Unlimited Classes</option><option value="credits">Credit-based</option><option value="single">Single Class</option>
+            </select></div>
+          {membershipForm.type === 'credits' && (
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Number of Credits</label>
+              <input type="number" value={membershipForm.credits} onChange={(e) => setMembershipForm({ ...membershipForm, credits: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="10" /></div>
+          )}
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setShowMembershipModal(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onClick={handleSaveMembership} disabled={saving || !membershipForm.name || !membershipForm.price} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50">
+              {saving ? 'Saving...' : editingMembership ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
