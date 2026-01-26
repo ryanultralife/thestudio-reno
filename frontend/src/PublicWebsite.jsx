@@ -42,6 +42,8 @@ function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
 
   if (!isOpen) return null;
 
+  const staffRoles = ['front_desk', 'teacher', 'manager', 'owner', 'admin'];
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -54,6 +56,14 @@ function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
           body: JSON.stringify({ email: form.email, password: form.password }),
         });
         localStorage.setItem('user_token', data.token);
+
+        // Redirect staff users to admin portal
+        if (staffRoles.includes(data.user.role)) {
+          localStorage.setItem('staff_token', data.token);
+          window.location.href = '/admin';
+          return;
+        }
+
         onLogin(data.user);
         onClose();
       } else {
@@ -1402,11 +1412,21 @@ export default function PublicWebsite() {
 
   useEffect(() => { checkAuth(); }, []);
 
+  const staffRoles = ['front_desk', 'teacher', 'manager', 'owner', 'admin'];
+
   const checkAuth = async () => {
     const token = localStorage.getItem('user_token');
     if (!token) { setLoading(false); return; }
     try {
       const data = await api('/auth/me');
+
+      // Redirect staff users to admin portal
+      if (staffRoles.includes(data.user.role)) {
+        localStorage.setItem('staff_token', token);
+        window.location.href = '/admin';
+        return;
+      }
+
       setUser(data.user);
     } catch (err) {
       localStorage.removeItem('user_token');
