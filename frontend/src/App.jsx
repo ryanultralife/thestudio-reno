@@ -828,10 +828,14 @@ function CoopPage() {
   const [tiers, setTiers] = useState([]);
   const [myClasses, setMyClasses] = useState([]);
   const [agreements, setAgreements] = useState([]);
+  const [earnings, setEarnings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showBookModal, setShowBookModal] = useState(false);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [bookingForm, setBookingForm] = useState({ classTypeId: '', price: '', title: '', description: '' });
+  const [agreementForm, setAgreementForm] = useState({ teacherId: '', agreementType: 'per_class', startDate: '' });
+  const [allTeachers, setAllTeachers] = useState([]);
   const [classTypes, setClassTypes] = useState([]);
   const [toast, setToast] = useState(null);
 
@@ -863,12 +867,42 @@ function CoopPage() {
       } else if (activeTab === 'myclasses') {
         const data = await api('/coop/classes/my');
         setMyClasses(data.classes || []);
+      } else if (activeTab === 'earnings') {
+        const data = await api('/coop/earnings/summary');
+        setEarnings(data);
       } else if (activeTab === 'agreements' && isAdmin) {
-        const data = await api('/coop/agreements');
-        setAgreements(data.agreements || []);
+        const [agreementsData, teachersData] = await Promise.all([
+          api('/coop/agreements'),
+          api('/classes/teachers/list'),
+        ]);
+        setAgreements(agreementsData.agreements || []);
+        setAllTeachers(teachersData.teachers || []);
       }
     } catch (err) { console.error('Failed to load co-op data:', err); }
     finally { setLoading(false); }
+  };
+
+  const handleCreateAgreement = async () => {
+    if (!agreementForm.teacherId || !agreementForm.startDate) {
+      setToast({ message: 'Please select a teacher and start date', type: 'error' });
+      return;
+    }
+    try {
+      await api('/coop/agreements', {
+        method: 'POST',
+        body: JSON.stringify({
+          teacher_id: parseInt(agreementForm.teacherId),
+          agreement_type: agreementForm.agreementType,
+          start_date: agreementForm.startDate,
+        }),
+      });
+      setToast({ message: 'Agreement created successfully!', type: 'success' });
+      setShowAgreementModal(false);
+      setAgreementForm({ teacherId: '', agreementType: 'per_class', startDate: '' });
+      loadData();
+    } catch (err) {
+      setToast({ message: err.message, type: 'error' });
+    }
   };
 
   const handleBookSlot = async () => {
@@ -1089,23 +1123,59 @@ function CoopPage() {
           {/* Earnings Tab */}
           {activeTab === 'earnings' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <p className="text-sm text-gray-500 mb-1">Total Revenue</p>
-                  <p className="text-3xl font-bold text-gray-900">{formatCurrency(0)}</p>
+                  <p className="text-3xl font-bold text-gray-900">{formatCurrency(earnings?.total_revenue || 0)}</p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm p-6">
-                  <p className="text-sm text-gray-500 mb-1">Total Rental Fees</p>
-                  <p className="text-3xl font-bold text-red-600">-{formatCurrency(0)}</p>
+                  <p className="text-sm text-gray-500 mb-1">Credit Reimbursements</p>
+                  <p className="text-3xl font-bold text-blue-600">{formatCurrency(earnings?.total_reimbursements || 0)}</p>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm p-6">
+                  <p className="text-sm text-gray-500 mb-1">Rental Fees</p>
+                  <p className="text-3xl font-bold text-red-600">-{formatCurrency(earnings?.total_rental_fees || 0)}</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-6 bg-green-50">
                   <p className="text-sm text-gray-500 mb-1">Net Earnings</p>
-                  <p className="text-3xl font-bold text-green-600">{formatCurrency(0)}</p>
+                  <p className="text-3xl font-bold text-green-600">{formatCurrency(earnings?.net_earnings || 0)}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <p className="text-sm text-gray-500 mb-1">Pending Payout</p>
+                  <p className="text-2xl font-bold text-amber-600">{formatCurrency(earnings?.pending_payout || 0)}</p>
+                  <p className="text-xs text-gray-400 mt-1">Processed on the 1st & 15th</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <p className="text-sm text-gray-500 mb-1">Total Paid Out</p>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(earnings?.total_payouts || 0)}</p>
                 </div>
               </div>
               <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Recent Transactions</h3>
-                <p className="text-gray-500 text-center py-8">No transactions yet. Start teaching co-op classes to see your earnings here.</p>
+                <h3 className="font-semibold text-gray-900 mb-4">Summary</h3>
+                {earnings?.total_classes > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{earnings?.total_classes || 0}</p>
+                      <p className="text-sm text-gray-500">Classes Taught</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{earnings?.total_students || 0}</p>
+                      <p className="text-sm text-gray-500">Total Students</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{formatCurrency((earnings?.total_revenue || 0) / (earnings?.total_classes || 1))}</p>
+                      <p className="text-sm text-gray-500">Avg Revenue/Class</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{((earnings?.total_students || 0) / (earnings?.total_classes || 1)).toFixed(1)}</p>
+                      <p className="text-sm text-gray-500">Avg Students/Class</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-8">No classes taught yet. Start teaching co-op classes to see your earnings here.</p>
+                )}
               </div>
             </div>
           )}
@@ -1115,7 +1185,7 @@ function CoopPage() {
             <div className="bg-white rounded-xl shadow-sm">
               <div className="px-6 py-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Teacher Agreements</h2>
-                <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm">
+                <button onClick={() => setShowAgreementModal(true)} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm">
                   + New Agreement
                 </button>
               </div>
@@ -1126,14 +1196,31 @@ function CoopPage() {
                       <p className="font-medium text-gray-900">{agreement.teacher_name}</p>
                       <p className="text-sm text-gray-500">{agreement.agreement_type} • Started {new Date(agreement.start_date).toLocaleDateString()}</p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${agreement.status === 'active' ? 'bg-green-100 text-green-800' : agreement.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
-                      {agreement.status}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${agreement.status === 'active' ? 'bg-green-100 text-green-800' : agreement.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {agreement.status}
+                      </span>
+                      {agreement.status === 'pending' && (
+                        <button onClick={async () => {
+                          try {
+                            await api(`/coop/agreements/${agreement.id}/approve`, { method: 'POST' });
+                            setToast({ message: 'Agreement approved!', type: 'success' });
+                            loadData();
+                          } catch (err) { setToast({ message: err.message, type: 'error' }); }
+                        }} className="text-green-600 hover:text-green-700 font-medium text-sm">
+                          Approve
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {agreements.length === 0 && (
                   <div className="px-6 py-12 text-center">
+                    <Icons.Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500">No teacher agreements yet</p>
+                    <button onClick={() => setShowAgreementModal(true)} className="mt-4 text-amber-600 hover:text-amber-700 font-medium">
+                      Create first agreement →
+                    </button>
                   </div>
                 )}
               </div>
@@ -1198,6 +1285,49 @@ function CoopPage() {
           )}
         </>
       )}
+
+      {/* Create Agreement Modal */}
+      <Modal isOpen={showAgreementModal} onClose={() => setShowAgreementModal(false)} title="Create Teacher Agreement" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Teacher *</label>
+            <select value={agreementForm.teacherId} onChange={(e) => setAgreementForm({ ...agreementForm, teacherId: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+              <option value="">Select teacher...</option>
+              {allTeachers.map(t => (
+                <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Agreement Type *</label>
+            <select value={agreementForm.agreementType} onChange={(e) => setAgreementForm({ ...agreementForm, agreementType: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500">
+              <option value="per_class">Per Class (pay per rental)</option>
+              <option value="weekly">Weekly (fixed weekly rate)</option>
+              <option value="monthly">Monthly (fixed monthly rate)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+            <input type="date" value={agreementForm.startDate} onChange={(e) => setAgreementForm({ ...agreementForm, startDate: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div className="bg-purple-50 rounded-lg p-4">
+            <p className="text-sm text-purple-800">
+              <strong>Note:</strong> The agreement will be created in "pending" status. You'll need to approve it before the teacher can book co-op classes.
+            </p>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button onClick={() => setShowAgreementModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button onClick={handleCreateAgreement} className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium">
+              Create Agreement
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Book Class Modal */}
       <Modal isOpen={showBookModal} onClose={() => setShowBookModal(false)} title="Book Co-op Class" size="md">

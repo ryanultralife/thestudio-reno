@@ -138,6 +138,7 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [membership, setMembership] = useState(null);
+  const [coopCredits, setCoopCredits] = useState(0);
 
   useEffect(() => {
     if (isOpen && user) {
@@ -150,6 +151,13 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
       const data = await api('/memberships/mine');
       const active = data.memberships?.find(m => m.status === 'active');
       setMembership(active);
+      // Load co-op credits if member has active membership
+      if (active) {
+        try {
+          const creditsData = await api('/coop/credits/mine');
+          setCoopCredits(creditsData.available || 0);
+        } catch { setCoopCredits(0); }
+      }
     } catch (err) {
       console.error('Failed to load membership:', err);
     }
@@ -160,10 +168,21 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
     setError('');
 
     try {
-      await api('/bookings', {
-        method: 'POST',
-        body: JSON.stringify({ class_id: classInfo.id }),
-      });
+      // Use different endpoint for co-op classes
+      if (classInfo.is_coop) {
+        await api('/coop/bookings', {
+          method: 'POST',
+          body: JSON.stringify({
+            class_id: classInfo.id,
+            use_credit: coopCredits > 0 && membership
+          }),
+        });
+      } else {
+        await api('/bookings', {
+          method: 'POST',
+          body: JSON.stringify({ class_id: classInfo.id }),
+        });
+      }
       onSuccess('Class booked successfully!');
       onClose();
     } catch (err) {
@@ -176,6 +195,19 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
   if (!isOpen || !classInfo) return null;
 
   const isFull = classInfo.booked >= classInfo.capacity;
+  const isCoop = classInfo.is_coop;
+
+  // Calculate price display for co-op classes
+  const getCoopPriceDisplay = () => {
+    if (!isCoop) return null;
+    if (membership && coopCredits > 0) {
+      return { price: 'FREE', note: `Using 1 of ${coopCredits} co-op credits`, type: 'credit' };
+    } else if (membership) {
+      return { price: `$${classInfo.coop_member_price}`, note: 'Member price', type: 'member' };
+    }
+    return { price: `$${classInfo.coop_price}`, note: 'Drop-in price', type: 'dropin' };
+  };
+  const coopPrice = getCoopPriceDisplay();
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -187,11 +219,12 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
           </button>
 
           <div className="text-center mb-6">
+            {isCoop && <span className="inline-block px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded mb-2">CO-OP CLASS</span>}
             <h2 className="text-2xl font-bold text-gray-900">{classInfo.class_name}</h2>
             <p className="text-gray-500 mt-1">{classInfo.teacher_name}</p>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+          <div className={`rounded-lg p-4 mb-6 ${isCoop ? 'bg-purple-50' : 'bg-gray-50'}`}>
             <div className="flex justify-between mb-2">
               <span className="text-gray-600">Date</span>
               <span className="font-medium">{new Date(classInfo.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
@@ -206,22 +239,58 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Location</span>
-              <span className="font-medium">{classInfo.location_name}</span>
+              <span className="font-medium">{classInfo.location_name || classInfo.room_name}</span>
             </div>
           </div>
 
-          {membership ? (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-              <p className="text-green-800 font-medium">{membership.name}</p>
-              <p className="text-green-600 text-sm">
-                {membership.credits_remaining !== null ? `${membership.credits_remaining} credits remaining` : 'Unlimited classes'}
-              </p>
+          {/* Co-op class pricing */}
+          {isCoop ? (
+            <div className={`border rounded-lg p-4 mb-6 ${
+              coopPrice.type === 'credit' ? 'bg-green-50 border-green-200' :
+              coopPrice.type === 'member' ? 'bg-purple-50 border-purple-200' :
+              'bg-amber-50 border-amber-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`font-medium ${
+                    coopPrice.type === 'credit' ? 'text-green-800' :
+                    coopPrice.type === 'member' ? 'text-purple-800' :
+                    'text-amber-800'
+                  }`}>Your Price</p>
+                  <p className={`text-sm ${
+                    coopPrice.type === 'credit' ? 'text-green-600' :
+                    coopPrice.type === 'member' ? 'text-purple-600' :
+                    'text-amber-600'
+                  }`}>{coopPrice.note}</p>
+                </div>
+                <span className={`text-2xl font-bold ${
+                  coopPrice.type === 'credit' ? 'text-green-700' :
+                  coopPrice.type === 'member' ? 'text-purple-700' :
+                  'text-amber-700'
+                }`}>{coopPrice.price}</span>
+              </div>
+              {membership && coopPrice.type !== 'credit' && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Regular price: ${classInfo.coop_price} (You save ${(classInfo.coop_price - classInfo.coop_member_price).toFixed(0)})
+                </p>
+              )}
             </div>
           ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-              <p className="text-amber-800 font-medium">No active membership</p>
-              <p className="text-amber-600 text-sm">A drop-in fee of $22 will apply</p>
-            </div>
+            <>
+              {membership ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                  <p className="text-green-800 font-medium">{membership.name}</p>
+                  <p className="text-green-600 text-sm">
+                    {membership.credits_remaining !== null ? `${membership.credits_remaining} credits remaining` : 'Unlimited classes'}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                  <p className="text-amber-800 font-medium">No active membership</p>
+                  <p className="text-amber-600 text-sm">A drop-in fee of $22 will apply</p>
+                </div>
+              )}
+            </>
           )}
 
           {error && <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm mb-4">{error}</div>}
@@ -230,7 +299,9 @@ function BookingModal({ isOpen, onClose, classInfo, user, onSuccess }) {
             <button onClick={onClose} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium">
               Cancel
             </button>
-            <button onClick={handleBook} disabled={loading} className={`flex-1 px-4 py-3 rounded-lg font-medium transition ${isFull ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'} disabled:opacity-50`}>
+            <button onClick={handleBook} disabled={loading} className={`flex-1 px-4 py-3 rounded-lg font-medium transition disabled:opacity-50 ${
+              isCoop ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'
+            }`}>
               {loading ? 'Booking...' : isFull ? 'Join Waitlist' : 'Book Class'}
             </button>
           </div>
@@ -413,7 +484,7 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [classTypes, setClassTypes] = useState([]);
   const [teachers, setTeachers] = useState([]);
-  const [filter, setFilter] = useState({ classType: '', teacher: '' });
+  const [filter, setFilter] = useState({ classType: '', teacher: '', coopOnly: false });
 
   useEffect(() => { loadFilters(); loadSchedule(); }, [currentDate]);
 
@@ -462,6 +533,7 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
     return classes.filter(cls => {
       if (filter.classType && cls.class_type_id !== filter.classType) return false;
       if (filter.teacher && cls.teacher_id !== filter.teacher) return false;
+      if (filter.coopOnly && !cls.is_coop) return false;
       return true;
     });
   };
@@ -485,7 +557,7 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 mb-8">
+      <div className="flex flex-wrap items-center gap-4 mb-8">
         <select value={filter.classType} onChange={(e) => setFilter({ ...filter, classType: e.target.value })} className="px-4 py-2 border border-gray-300 rounded-lg">
           <option value="">All Class Types</option>
           {classTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
@@ -494,6 +566,26 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
           <option value="">All Teachers</option>
           {teachers.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
         </select>
+        <button
+          onClick={() => setFilter({ ...filter, coopOnly: !filter.coopOnly })}
+          className={`px-4 py-2 rounded-lg font-medium transition ${
+            filter.coopOnly
+              ? 'bg-purple-600 text-white'
+              : 'bg-purple-50 text-purple-700 border-2 border-dashed border-purple-300 hover:bg-purple-100'
+          }`}
+        >
+          Co-op Classes
+        </button>
+        <div className="ml-auto flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded border border-gray-200 bg-white"></div>
+            <span className="text-gray-600">Studio Class</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded border-2 border-dashed border-purple-300 bg-purple-50"></div>
+            <span className="text-gray-600">Co-op Class</span>
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -514,15 +606,27 @@ function SchedulePage({ user, onShowAuth, onBookClass }) {
                     <p className="text-center text-gray-400 text-sm py-4">No classes</p>
                   ) : (
                     filteredClasses.map((cls) => (
-                      <button key={cls.id} onClick={() => handleClassClick(cls)} className="w-full text-left p-3 rounded-lg hover:bg-amber-50 border border-gray-100 hover:border-amber-200 transition">
-                        <p className="font-semibold text-amber-600">{cls.start_time?.slice(0, 5)}</p>
+                      <button key={cls.id} onClick={() => handleClassClick(cls)}
+                        className={`w-full text-left p-3 rounded-lg transition ${
+                          cls.is_coop
+                            ? 'hover:bg-purple-50 border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/30'
+                            : 'hover:bg-amber-50 border border-gray-100 hover:border-amber-200'
+                        }`}>
+                        <div className="flex items-center justify-between">
+                          <p className={`font-semibold ${cls.is_coop ? 'text-purple-600' : 'text-amber-600'}`}>{cls.start_time?.slice(0, 5)}</p>
+                          {cls.is_coop && <span className="px-1.5 py-0.5 bg-purple-600 text-white text-[10px] font-bold rounded">CO-OP</span>}
+                        </div>
                         <p className="font-medium text-gray-900 text-sm">{cls.class_name}</p>
                         <p className="text-xs text-gray-500">{cls.teacher_name}</p>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-xs text-gray-400">{cls.duration}min</span>
-                          <span className={`text-xs ${cls.booked >= cls.capacity ? 'text-red-500' : 'text-green-600'}`}>
-                            {cls.booked >= cls.capacity ? 'Full' : `${cls.capacity - cls.booked} spots`}
-                          </span>
+                          {cls.is_coop ? (
+                            <span className="text-xs font-medium text-purple-600">${cls.coop_member_price || cls.coop_price}</span>
+                          ) : (
+                            <span className={`text-xs ${cls.booked >= cls.capacity ? 'text-red-500' : 'text-green-600'}`}>
+                              {cls.booked >= cls.capacity ? 'Full' : `${cls.capacity - cls.booked} spots`}
+                            </span>
+                          )}
                         </div>
                       </button>
                     ))
