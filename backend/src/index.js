@@ -123,6 +123,8 @@ app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/retail', require('./routes/retail'));
 app.use('/api/cms', require('./routes/cms'));
 app.use('/api/coop', require('./routes/coop'));
+app.use('/api/mindbody', require('./routes/mindbody'));
+app.use('/api/marketing', require('./routes/marketing'));
 
 // ============================================
 // SERVE FRONTEND IN PRODUCTION

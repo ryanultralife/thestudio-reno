@@ -5,6 +5,8 @@
 
 const cron = require('node-cron');
 const coopJobs = require('./coop');
+const mindbodyJobs = require('./mindbody');
+const marketingJobs = require('./marketing');
 
 // Track scheduled jobs
 const scheduledJobs = new Map();
@@ -54,6 +56,98 @@ const jobSchedules = {
     schedule: '0 18 * * *',
     handler: coopJobs.runCoopClassReminders,
     description: 'Send reminders for tomorrow\'s co-op classes',
+  },
+
+  // ============================================
+  // MINDBODY SYNC JOBS
+  // ============================================
+
+  // Daily full sync - Run at 3:00 AM (low-traffic time)
+  'mindbody:daily-sync': {
+    schedule: '0 3 * * *',
+    handler: mindbodyJobs.runDailySync,
+    description: 'Full MindBody data sync (classes, clients, bookings)',
+  },
+
+  // Incremental sync - Run every 4 hours for schedule updates
+  'mindbody:incremental-sync': {
+    schedule: '0 */4 * * *',
+    handler: mindbodyJobs.runIncrementalSync,
+    description: 'Incremental sync of classes and bookings',
+  },
+
+  // Process sync queue - Every 5 minutes
+  'mindbody:process-queue': {
+    schedule: '*/5 * * * *',
+    handler: mindbodyJobs.processSyncQueue,
+    description: 'Process queued sync items from webhooks',
+  },
+
+  // Retry failed webhooks - Every hour at :30
+  'mindbody:retry-webhooks': {
+    schedule: '30 * * * *',
+    handler: mindbodyJobs.retryFailedWebhooks,
+    description: 'Retry failed webhook event processing',
+  },
+
+  // Cleanup old data - Weekly on Sunday at 2:00 AM
+  'mindbody:cleanup': {
+    schedule: '0 2 * * 0',
+    handler: mindbodyJobs.cleanupOldData,
+    description: 'Clean up old sync logs and processed queue items',
+  },
+
+  // Health check - Daily at 10:00 AM
+  'mindbody:health-check': {
+    schedule: '0 10 * * *',
+    handler: mindbodyJobs.checkSyncHealth,
+    description: 'Check MindBody sync health and alert if issues',
+  },
+
+  // ============================================
+  // MARKETING AUTOMATION JOBS
+  // ============================================
+
+  // Process scheduled campaigns - Every 5 minutes
+  'marketing:process-campaigns': {
+    schedule: '*/5 * * * *',
+    handler: marketingJobs.processScheduledCampaigns,
+    description: 'Send scheduled email campaigns',
+  },
+
+  // Process automation steps - Every 5 minutes
+  'marketing:process-automations': {
+    schedule: '*/5 * * * *',
+    handler: marketingJobs.processAutomationSteps,
+    description: 'Execute pending automation steps',
+  },
+
+  // Check trigger conditions - Daily at 8:00 AM
+  'marketing:check-triggers': {
+    schedule: '0 8 * * *',
+    handler: marketingJobs.checkTriggerConditions,
+    description: 'Check time-based automation triggers (expiring memberships, inactive users)',
+  },
+
+  // Update segment counts - Daily at 4:00 AM
+  'marketing:update-segments': {
+    schedule: '0 4 * * *',
+    handler: marketingJobs.updateSegmentCounts,
+    description: 'Recalculate segment member counts',
+  },
+
+  // Send daily digest - Daily at 9:00 AM
+  'marketing:daily-digest': {
+    schedule: '0 9 * * *',
+    handler: marketingJobs.sendDailyDigest,
+    description: 'Send marketing activity summary to admins',
+  },
+
+  // Cleanup old data - Weekly on Sunday at 3:00 AM
+  'marketing:cleanup': {
+    schedule: '0 3 * * 0',
+    handler: marketingJobs.cleanupOldData,
+    description: 'Clean up old campaign sends and tracking data',
   },
 };
 
